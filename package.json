@@ -1,0 +1,58 @@
+{
+  "name": "workspacehop",
+  "displayName": "WorkspaceHop",
+  "description": "Per-workspace color identity and fast keyboard-driven window switcher for multi-window development",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.88.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GagoM/vs-code-ext-workspace-hop"
+  },
+  "categories": ["Other"],
+  "keywords": ["git", "productivity", "workspace", "multi-window", "color", "window switcher", "repo switcher"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "workspacehop.openSwitcher",
+        "title": "WorkspaceHop: Open Window Switcher"
+      },
+      {
+        "command": "workspacehop.setColor",
+        "title": "WorkspaceHop: Set Workspace Color"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "workspacehop.openSwitcher",
+        "key": "ctrl+shift+w",
+        "mac": "cmd+shift+w"
+      }
+    ],
+    "configuration": {
+      "title": "WorkspaceHop",
+      "properties": {
+        "workspacehop.accentOpacity": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Opacity of the color accent (0–1)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}
