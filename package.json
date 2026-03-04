@@ -13,6 +13,7 @@
   "categories": ["Other"],
   "keywords": ["git", "productivity", "workspace", "multi-window", "color", "window switcher", "repo switcher"],
   "activationEvents": ["onStartupFinished"],
+  "icon": "images/logo.png",
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
