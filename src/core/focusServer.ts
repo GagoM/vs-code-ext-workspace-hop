@@ -2,7 +2,6 @@ import * as http from "http";
 import * as net from "net";
 import * as cp from "child_process";
 import * as path from "path";
-import * as vscode from "vscode";
 
 const PORT_START = 49200;
 const PORT_END = 49300;

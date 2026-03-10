@@ -1,7 +1,9 @@
 {
+  "publisher": "gagom",
+  "license": "MIT",
   "name": "workspacehop",
   "displayName": "WorkspaceHop",
-  "description": "Per-workspace color identity and fast keyboard-driven window switcher for multi-window development",
+  "description": "Easily switch between VS Code workspaces/windows - tabs navigation, color identity, custom nicknames, and more",
   "version": "0.1.0",
   "engines": {
     "vscode": "^1.88.0"
@@ -16,6 +18,24 @@
   "icon": "images/logo.png",
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "workspacehop",
+          "title": "WorkspaceHop",
+          "icon": "images/logo.png"
+        }
+      ]
+    },
+    "views": {
+      "workspacehop": [
+        {
+          "type": "webview",
+          "id": "workspacehop.sidebarView",
+          "name": "Windows"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "workspacehop.openSwitcher",

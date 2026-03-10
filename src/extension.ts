@@ -4,9 +4,10 @@ import * as vscode from "vscode";
 
 import * as registry from "./core/registry";
 import * as git from "./core/git";
-import { getColorForWorkspace } from "./core/colorManager";
+import { getColorForWorkspace, saveColorForWorkspace } from "./core/colorManager";
+import { getNicknameForWorkspace } from "./core/nicknameManager";
 import { startFocusServer, FocusServer } from "./core/focusServer";
-import { applyWorkspaceColor } from "./utils/applyColors";
+import { applyWorkspaceColor, clearWorkspaceColor } from "./utils/applyColors";
 import { showSwitcher } from "./switcher/switcherPanel";
 import { showColorPicker } from "./colorPicker/colorPickerPanel";
 import {
@@ -14,6 +15,7 @@ import {
   teardownStatusBarTabs,
   refreshStatusBarTabs,
 } from "./statusBar/statusBarTabs";
+import { SidebarViewProvider } from "./sidebar/sidebarView";
 
 // ─── Module-level state (lifetime = one activation) ──────────────────────────
 
@@ -40,6 +42,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     ? getColorForWorkspace(context, workspacePath) ?? ""
     : "";
 
+  // ── Saved nickname ────────────────────────────────────────────────────────
+  let nickname = workspacePath
+    ? getNicknameForWorkspace(context, workspacePath) ?? ""
+    : "";
+
   if (color) {
     await applyWorkspaceColor(color).catch(() => {
       // Non-fatal — might fail if workspace settings aren't writable
@@ -57,6 +64,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     repoName,
     branch,
     color,
+    nickname,
+    createdAt: Date.now(),
     lastActive: Date.now(),
     pid: process.pid,
   };
@@ -66,12 +75,35 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   heartbeat = setInterval(async () => {
     if (self) {
       self.lastActive = Date.now();
+      // Re-read nickname each tick so edits made from another window's switcher
+      // are picked up rather than being overwritten by stale in-memory state.
+      if (workspacePath) {
+        self.nickname = getNicknameForWorkspace(context, workspacePath) ?? "";
+
+        // Detect cross-window color changes (e.g. set from another window's switcher)
+        const latestColor = getColorForWorkspace(context, workspacePath) ?? "";
+        if (latestColor !== color) {
+          color = latestColor;
+          self.color = color;
+          if (color) {
+            await applyWorkspaceColor(color).catch(() => {});
+          } else {
+            await clearWorkspaceColor().catch(() => {});
+          }
+        }
+      }
       await registry.upsertSelf(self).catch(() => { /* non-fatal */ });
     }
-  }, 5000);
+  }, 2000);
 
   // ── Status-bar tab row ────────────────────────────────────────────────────
   initStatusBarTabs(context, instanceId);
+
+  // ── Sidebar view ──────────────────────────────────────────────────────────
+  const sidebarProvider = new SidebarViewProvider(context, instanceId);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider("workspacehop.sidebarView", sidebarProvider)
+  );
 
   // ── Git HEAD watcher ──────────────────────────────────────────────────────
   if (workspacePath) {
@@ -92,21 +124,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       showSwitcher(context, instanceId)
     ),
 
-    vscode.commands.registerCommand("workspacehop.setColor", () =>
-      showColorPicker(
-        context,
-        workspacePath,
-        color || undefined,
-        async (newColor) => {
-          color = newColor;
-          if (self) {
-            self.color = color;
-            await registry.upsertSelf(self).catch(() => { /* non-fatal */ });
-          }
-          refreshStatusBarTabs();
+    vscode.commands.registerCommand("workspacehop.setColor", () => {
+      if (!workspacePath) {
+        vscode.window.showInformationMessage(
+          "WorkspaceHop: Open a workspace folder to set a workspace color."
+        );
+        return;
+      }
+      showColorPicker(color || undefined, nickname || repoName, async (newColor) => {
+        color = newColor;
+        await saveColorForWorkspace(context, workspacePath, newColor);
+        if (newColor) {
+          await applyWorkspaceColor(newColor).catch(() => {});
+        } else {
+          await clearWorkspaceColor().catch(() => {});
         }
-      )
-    )
+        if (self) {
+          self.color = color;
+          await registry.upsertSelf(self).catch(() => { /* non-fatal */ });
+        }
+        refreshStatusBarTabs();
+      });
+    })
   );
 
   // ── Custom title bar hint ─────────────────────────────────────────────────

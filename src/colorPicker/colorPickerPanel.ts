@@ -1,32 +1,29 @@
 import * as crypto from "crypto";
 import * as vscode from "vscode";
 import { PALETTE } from "../core/colorManager";
-import { applyWorkspaceColor, clearWorkspaceColor } from "../utils/applyColors";
-import { saveColorForWorkspace } from "../core/colorManager";
 
 let activePanel: vscode.WebviewPanel | undefined;
+let activeCallback: ((hex: string) => void) | undefined;
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 /**
  * Opens the color-picker webview.
  * `onColorChanged` is called with the selected hex string (empty string = cleared).
+ * Callers are responsible for persisting and applying the color.
  */
 export async function showColorPicker(
-  context: vscode.ExtensionContext,
-  workspacePath: string,
   currentColor: string | undefined,
+  workspaceName: string,
   onColorChanged: (hex: string) => void
 ): Promise<void> {
-  if (!workspacePath) {
-    vscode.window.showInformationMessage(
-      "WorkspaceHop: Open a workspace folder to set a workspace color."
-    );
-    return;
-  }
-
   if (activePanel) {
-    activePanel.reveal(vscode.ViewColumn.One);
+    // Update the panel for the new workspace without recreating it.
+    activeCallback = onColorChanged;
+    activePanel.title = `WorkspaceHop: Set Color`;
+    const nonce = crypto.randomBytes(16).toString("hex");
+    activePanel.webview.html = buildHtml(currentColor, workspaceName, nonce);
+    activePanel.reveal(vscode.ViewColumn.One, true);
     return;
   }
 
@@ -38,21 +35,18 @@ export async function showColorPicker(
   );
 
   activePanel = panel;
-  panel.onDidDispose(() => { activePanel = undefined; });
+  activeCallback = onColorChanged;
+  panel.onDidDispose(() => { activePanel = undefined; activeCallback = undefined; });
 
   const nonce = crypto.randomBytes(16).toString("hex");
-  panel.webview.html = buildHtml(currentColor, nonce);
+  panel.webview.html = buildHtml(currentColor, workspaceName, nonce);
 
   panel.webview.onDidReceiveMessage(async (msg: PickerMessage) => {
     if (msg.type === "pick" && msg.hex) {
-      await applyWorkspaceColor(msg.hex);
-      await saveColorForWorkspace(context, workspacePath, msg.hex);
-      onColorChanged(msg.hex);
+      activeCallback?.(msg.hex);
       panel.dispose();
     } else if (msg.type === "clear") {
-      await clearWorkspaceColor();
-      await saveColorForWorkspace(context, workspacePath, "");
-      onColorChanged("");
+      activeCallback?.("");
       panel.dispose();
     } else if (msg.type === "close") {
       panel.dispose();
@@ -69,7 +63,7 @@ interface PickerMessage {
 
 // ─── HTML builder ────────────────────────────────────────────────────────────
 
-function buildHtml(currentColor: string | undefined, nonce: string): string {
+function buildHtml(currentColor: string | undefined, workspaceName: string, nonce: string): string {
   const swatches = PALETTE.map((c) => {
     const isActive = c.hex === currentColor;
     return (
@@ -97,14 +91,14 @@ function buildHtml(currentColor: string | undefined, nonce: string): string {
   <meta http-equiv="Content-Security-Policy"
     content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Set Workspace Color</title>
+  <title>Set Color – ${workspaceName}</title>
   <style nonce="${nonce}">${CSS}
 ${swatchColorCSS}</style>
 </head>
 <body>
   <div class="container">
-    <h1 class="title">Workspace Color</h1>
-    <p class="subtitle">Choose a color for this workspace's title bar</p>
+    <h1 class="title">${workspaceName}</h1>
+    <p class="subtitle">Choose a color for this workspace</p>
     <div class="grid" role="group" aria-label="Color palette">
       ${swatches}
     </div>

@@ -9,8 +9,10 @@ export interface InstanceEntry {
   repoName: string;     // basename of workspacePath
   branch: string;       // current git branch, "" if not a git repo
   color: string;        // hex color, "" if unset
+  createdAt: number;    // unix timestamp ms — set once at activation, used for stable tab ordering
   lastActive: number;   // unix timestamp ms
   pid: number;          // OS PID — used to detect stale entries
+  nickname?: string;    // user-defined display name; absent = use branch/folder default
 }
 
 type Registry = Record<string, InstanceEntry>;
@@ -151,4 +153,32 @@ export async function readAll(): Promise<InstanceEntry[]> {
 export async function getById(id: string): Promise<InstanceEntry | undefined> {
   const all = await readAll();
   return all.find((e) => e.id === id);
+}
+
+/** Update only the nickname field of an existing entry. No-op if ID not found. */
+export async function updateNickname(id: string, nickname: string): Promise<void> {
+  await acquireLock();
+  try {
+    const registry = readFile();
+    if (registry[id]) {
+      registry[id].nickname = nickname || undefined;
+      writeFile(registry);
+    }
+  } finally {
+    releaseLock();
+  }
+}
+
+/** Update only the color field of an existing entry. No-op if ID not found. */
+export async function updateColor(id: string, color: string): Promise<void> {
+  await acquireLock();
+  try {
+    const registry = readFile();
+    if (registry[id]) {
+      registry[id].color = color;
+      writeFile(registry);
+    }
+  } finally {
+    releaseLock();
+  }
 }

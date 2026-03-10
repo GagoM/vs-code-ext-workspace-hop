@@ -82,11 +82,7 @@ async function refresh(): Promise<void> {
     return;
   }
 
-  const sorted = [...instances].sort((a, b) => {
-    if (a.id === selfId) { return -1; }
-    if (b.id === selfId) { return  1; }
-    return b.lastActive - a.lastActive;
-  });
+  const sorted = [...instances].sort((a, b) => a.createdAt - b.createdAt);
 
   const home = os.homedir();
 
@@ -113,7 +109,11 @@ async function refresh(): Promise<void> {
 // ─── Label ────────────────────────────────────────────────────────────────────
 
 function buildLabel(inst: registry.InstanceEntry, home: string, isCurrent: boolean): string {
-  const dot = inst.color ? (isCurrent ? DOT_ACTIVE : DOT_INACTIVE) : "";
+  const dot = isCurrent ? DOT_ACTIVE : DOT_INACTIVE;
+
+  if (inst.nickname) {
+    return `${dot}${trunc(inst.nickname, MAX_LBL)}`;
+  }
 
   if (inst.branch) {
     return `${dot}${BRANCH_ICON} ${trunc(inst.branch, MAX_LBL)}`;
@@ -137,7 +137,12 @@ function buildTooltip(
   const md = new vscode.MarkdownString(undefined, true);
   md.isTrusted = false;
 
-  md.appendMarkdown(`**${esc(inst.repoName)}**`);
+  if (inst.nickname) {
+    md.appendMarkdown(`**${esc(inst.nickname)}**`);
+    md.appendMarkdown(`  \n${esc(inst.repoName)}`);
+  } else {
+    md.appendMarkdown(`**${esc(inst.repoName)}**`);
+  }
   if (inst.branch) { md.appendMarkdown(` · \`${esc(inst.branch)}\``); }
   if (p)           { md.appendMarkdown(`  \n\`${esc(p)}\``); }
   if (isCurrent)   { md.appendMarkdown(`  \n*Click to change colour*`); }

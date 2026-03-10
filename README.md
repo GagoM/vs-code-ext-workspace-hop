@@ -1,10 +1,12 @@
+<p align="center" style="margin-top: 50px;">
+  <img src="images/logo.png" alt="WorkspaceHop Logo" width="120" />
+</p>
+
 # WorkspaceHop
 
-Fast keyboard-driven window switcher and per-workspace color identity for VS Code.
+**Easily switch between VS Code windows** — tabs navigation, color identity, custom nicknames, and more.
 
-When you have multiple VS Code windows open across different projects, WorkspaceHop lets you jump between them instantly and tells them apart at a glance — each workspace gets its own title bar color that persists across sessions.
-
-<img src="images/overview.png" alt="WorkspaceHop overview" width="800px">
+WorkspaceHop gives each VS Code workspace a persistent identity: a color, a nickname, and a place in your status bar. Jump between windows instantly with a keyboard-driven switcher or browse them from the activity bar. Recently closed workspaces are remembered too, so you can reopen them just as quickly.
 
 ---
 
@@ -12,109 +14,63 @@ When you have multiple VS Code windows open across different projects, Workspace
 
 ### Status Bar Tabs
 
-Every open VS Code window shows a tab row in its own status bar listing all other open windows.
+Every open VS Code window appears as a clickable tab in the status bar. Tabs show the workspace nickname, git branch, or folder name — whichever is most specific — along with an active/inactive indicator. Clicking your own tab opens the color picker; clicking another window's tab brings it into focus.
 
-- Each tab shows the git branch (or folder name if not a git repo)
-- Colored text if that workspace has a color set: `● main` (active) / `○ main` (inactive)
-- Click any tab to jump to that window
-- Click your own tab (the active one) to open the color picker
+![Opening the switcher with keyboard shortcut, filtering, and selecting a window](images/tabs-switching.gif)
 
-<img src="images/window-switching.gif" alt="Status bar tabs" width="800px">
+---
 
-### Workspace Colors
+### Activity Bar Panel
 
-Assign a persistent color to any workspace via the command palette: **WorkspaceHop: Set Workspace Color**.
+The WorkspaceHop panel in the activity bar shows all open windows at a glance, including their color accent, nickname, git branch, path, and time since last activity. A search bar lets you filter by any of these fields. Recent (closed) workspaces appear in a separate section below.
 
-- Pick from 12 handpicked colors (Ember, Sky, Jade, Violet, Rose, Cyan, Amber, Indigo, Coral, Mint, Blush, Sand)
-- The color tints the title bar, activity bar, and window chrome
-- Colors are saved per-workspace and automatically restored when you reopen the window
-- Stored in your personal VS Code settings — never written to `.vscode/settings.json`, so nothing leaks into git
+![Activity bar panel open, browsing windows, using the search bar to filter](images/switcher-activity-bar.gif)
 
-<img src="images/color-picker.png" alt="Color picker" width="400px">
+---
 
 ### Window Switcher
 
-Open a floating switcher panel with `Cmd+Shift+W` (Mac) / `Ctrl+Shift+W` (Windows/Linux).
+Press `Cmd+Shift+W` (macOS) or `Ctrl+Shift+W` (Windows/Linux) to open the full-screen overlay switcher. Navigate with arrow keys, type to filter, and hit Enter to jump to any window. Recent workspaces are listed below currently open windows.
 
-- All open VS Code windows are listed with their repo name, current git branch, and path
-- The current window is pinned to the top; others are sorted by most recently active
-- Type to filter by repo name or branch
-- Navigate with `↑` / `↓`, confirm with `Enter`, dismiss with `Escape`
-- Each entry shows a color accent bar if a workspace color has been set
+<!-- ![Opening the switcher with keyboard shortcut, filtering, and selecting a window](images/tabs-switching.gif) -->
 
-<img src="images/switcher-overlay.png" alt="Window switcher demo" width="800px">
+---
+
+### Color Identity & Color Picker
+
+Assign a unique accent color to each workspace so you always know which window you're in at a glance. The color appears in the status bar tab and as a left accent bar in the sidebar and switcher panels.
+
+<img src="images/color-picker.png" width="300" />
+
+---
+
+### Nicknames
+
+Give any workspace a friendly name - it takes priority over the branch name and folder name everywhere in the UI. Edit it via the pencil icon in the switcher or sidebar.
+
 ---
 
 ## Commands
 
 | Command | Description |
 |---|---|
-| `WorkspaceHop: Open Window Switcher` | Open the floating switcher panel |
-| `WorkspaceHop: Set Workspace Color` | Open the color picker for this workspace |
+| `WorkspaceHop: Open Window Switcher` | Open the keyboard-driven window switcher overlay |
+| `WorkspaceHop: Set Workspace Color` | Open the color picker for the current workspace |
 
-**Default keybinding:** `Cmd+Shift+W` / `Ctrl+Shift+W` — opens the window switcher.
+## Keybindings
 
----
-
-## Usage Examples
-
-**Jumping to a window from the status bar**
-
-Click any tab in the bottom status bar. The tab for the current window shows a filled dot (`●`); other windows show an outline dot (`○`) when they have a color assigned.
-
-
-**Assigning a color to a workspace**
-
-1. Open the Command Palette (`Cmd+Shift+P`)
-2. Run `WorkspaceHop: Set Workspace Color`
-3. Click a color swatch — the title bar updates immediately
-4. The color is remembered and reapplied every time you open this workspace
-
-
-**Switching windows**
-
-1. Press `Cmd+Shift+W`
-2. Start typing a repo name or branch — e.g. `feat` to find `feat/auth`
-3. Press `Enter` to jump to that window
-
----
-
-## Installation
-
-Install from a `.vsix` file:
-
-1. Open VS Code
-2. Run `Extensions: Install from VSIX…` from the Command Palette
-3. Select `workspacehop-0.1.0.vsix`
-
-Or via the CLI:
-
-```sh
-code --install-extension workspacehop-0.1.0.vsix
-```
-
----
-
-## Requirements
-
-- VS Code 1.88 or later
-- For title bar coloring: enable the custom title bar via **Window: Title Bar Style → custom**, or accept the prompt WorkspaceHop shows on first activation
-
----
-
-## Color Palette
-
-| Name | Hex |
+| Keybinding | Action |
 |---|---|
-| Ember | `#F97316` |
-| Sky | `#3B82F6` |
-| Jade | `#22C55E` |
-| Violet | `#A855F7` |
-| Rose | `#F43F5E` |
-| Cyan | `#06B6D4` |
-| Amber | `#EAB308` |
-| Indigo | `#6366F1` |
-| Coral | `#EF4444` |
-| Mint | `#10B981` |
-| Blush | `#EC4899` |
-| Sand | `#D97706` |
+| `Cmd+Shift+W` / `Ctrl+Shift+W` | Open window switcher |
+
+## Settings
+
+| Setting | Type | Default | Description |
+|---|---|---|---|
+| `workspacehop.accentOpacity` | number | `1` | Opacity of the color accent in the status bar (0–1) |
+
+---
+
+## License
+
+MIT
