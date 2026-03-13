@@ -12,9 +12,21 @@
     "type": "git",
     "url": "https://github.com/GagoM/vs-code-ext-workspace-hop"
   },
-  "categories": ["Other"],
-  "keywords": ["git", "productivity", "workspace", "multi-window", "color", "window switcher", "repo switcher"],
-  "activationEvents": ["onStartupFinished"],
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "git",
+    "productivity",
+    "workspace",
+    "multi-window",
+    "color",
+    "window switcher",
+    "repo switcher"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "icon": "images/logo.png",
   "main": "./out/extension.js",
   "contributes": {
@@ -62,13 +74,18 @@
           "minimum": 0,
           "maximum": 1,
           "description": "Opacity of the color accent (0–1)"
+        },
+        "workspacehop.manageGitSkipWorktree": {
+          "type": "boolean",
+          "default": true,
+          "description": "When enabled, WorkspaceHop sets git's skip-worktree flag on .vscode/settings.json so per-window colors don't appear as modified in git status. Disable if you prefer to manage this yourself."
         }
       }
     }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
+    "compile": "tsc -p ./ && node -e \"require('fs').copyFileSync('src/utils/workspacehop-clean-filter.py', 'out/utils/workspacehop-clean-filter.py')\"",
     "watch": "tsc -watch -p ./"
   },
   "devDependencies": {

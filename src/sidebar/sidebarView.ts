@@ -10,6 +10,7 @@ import {
 } from "../core/nicknameManager";
 import { saveColorForWorkspace } from "../core/colorManager";
 import { applyWorkspaceColor, clearWorkspaceColor } from "../utils/applyColors";
+import { ensureGitFilterConfigured } from "../utils/gitFilter";
 import { showColorPicker } from "../colorPicker/colorPickerPanel";
 import {
   getRecentWorkspaces,
@@ -18,7 +19,7 @@ import {
 } from "../switcher/recentWorkspaces";
 
 interface WebviewMessage {
-  type: "focus" | "editNickname" | "openRecent" | "setColor";
+  type: "focus" | "editNickname" | "openRecent" | "setColor" | "toggleSkipWorktree";
   id: string;
   fsPath?: string;
 }
@@ -29,7 +30,8 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
   constructor(
     private readonly context: vscode.ExtensionContext,
-    private readonly currentId: string
+    private readonly currentId: string,
+    private readonly workspacePath: string
   ) { }
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
@@ -88,6 +90,18 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
         if (msg.fsPath) {
           openWorkspaceInNewWindow(msg.fsPath);
         }
+
+      } else if (msg.type === "toggleSkipWorktree") {
+        const cfg = vscode.workspace.getConfiguration("workspacehop");
+        const current = cfg.get<boolean>("manageGitSkipWorktree", true);
+        const next = !current;
+        await cfg.update("manageGitSkipWorktree", next, vscode.ConfigurationTarget.Global);
+        if (this.workspacePath) {
+          ensureGitFilterConfigured(this.workspacePath, this.context.extensionPath, next).catch(() => {});
+        }
+        // Re-read after a short delay so the setting has time to propagate
+        // before we rebuild the HTML (avoids the checkbox snapping back).
+        setTimeout(() => this.refresh(), 300);
       }
     });
 
@@ -102,7 +116,10 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     const openPaths = new Set(instances.map((i) => i.workspacePath).filter(Boolean));
     const recent = await getRecentWorkspaces(openPaths);
     const nonce = crypto.randomBytes(16).toString("hex");
-    this.view.webview.html = buildHtml(sorted, this.currentId, recent, nonce);
+    const skipWorktree = vscode.workspace
+      .getConfiguration("workspacehop")
+      .get<boolean>("manageGitSkipWorktree", true);
+    this.view.webview.html = buildHtml(sorted, this.currentId, recent, nonce, skipWorktree);
   }
 
   private startRefresh(): void {
@@ -146,9 +163,10 @@ function buildHtml(
   instances: registry.InstanceEntry[],
   currentId: string,
   recent: RecentWorkspace[],
-  nonce: string
+  nonce: string,
+  skipWorktree: boolean
 ): string {
-  const data = JSON.stringify({ instances, currentId, home: os.homedir(), recent });
+  const data = JSON.stringify({ instances, currentId, home: os.homedir(), recent, skipWorktree });
 
   return /* html */`<!DOCTYPE html>
 <html lang="en">
@@ -177,6 +195,28 @@ function buildHtml(
     </div>
     <ul class="list" id="list" role="listbox" aria-label="Open windows"></ul>
   </div>
+  <div class="settings-section">
+    <div class="obs-section-sep">
+      <div class="obs-section-line"></div>
+      <span class="obs-section-label">Settings</span>
+      <div class="obs-section-line"></div>
+    </div>
+    <div class="settings-row">
+      <label class="settings-toggle">
+        <input type="checkbox" id="skip-worktree-toggle" ${skipWorktree ? "checked" : ""}>
+        <span>Hide colors from git status</span>
+        <div class="info-tip">
+          <svg class="info-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 3a.75.75 0 1 1 0 1.5A.75.75 0 0 1 8 4zm-.25 3h1.5v4.5h-1.5V7z"/>
+          </svg>
+          <div class="info-tooltip">
+            Sets <code>git skip-worktree</code> on <code>.vscode/settings.json</code> so per-window colors never show as modified in <code>git status</code> or get accidentally committed.<br><br>
+            <strong>Global setting</strong> — applies to all workspaces.
+          </div>
+        </div>
+      </label>
+    </div>
+  </div>
   <script nonce="${nonce}">var __DATA__ = ${data};</script>
   <script nonce="${nonce}">${JS}</script>
 </body>
@@ -195,12 +235,15 @@ body {
   font-size: 13px;
   height: 100vh;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  flex: 1;
+  min-height: 0;
 }
 
 /* ── Search bar ── */
@@ -440,6 +483,87 @@ body {
   text-align: center;
   color: var(--vscode-descriptionForeground);
   font-size: 12px;
+}
+
+/* ── Settings footer ── */
+.settings-section {
+  flex-shrink: 0;
+}
+
+.settings-row {
+  padding: 4px 12px 8px;
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  user-select: none;
+}
+
+.settings-toggle:hover {
+  color: var(--vscode-foreground);
+}
+
+.settings-toggle input[type="checkbox"] {
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: var(--vscode-focusBorder);
+}
+
+.info-tip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.info-icon {
+  width: 12px;
+  height: 12px;
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.6;
+  cursor: default;
+}
+
+.info-tip:hover .info-icon {
+  opacity: 1;
+}
+
+.info-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  width: 220px;
+  background: var(--vscode-editorHoverWidget-background, #1e1e1e);
+  border: 1px solid var(--vscode-editorHoverWidget-border, rgba(128,128,128,0.3));
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--vscode-editorHoverWidget-foreground, var(--vscode-foreground));
+  z-index: 100;
+  pointer-events: none;
+}
+
+.info-tooltip code {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 10px;
+  background: var(--vscode-textCodeBlock-background, rgba(128,128,128,0.15));
+  border-radius: 2px;
+  padding: 1px 3px;
+}
+
+.info-tooltip strong {
+  color: var(--vscode-foreground);
+}
+
+.info-tip:hover .info-tooltip {
+  display: block;
 }
 `;
 
@@ -685,6 +809,15 @@ const JS = `(function () {
   searchEl.addEventListener('input', function () {
     render(searchEl.value);
   });
+
+  // ── Settings toggle ────────────────────────────────────────────────────────
+
+  var toggleEl = document.getElementById('skip-worktree-toggle');
+  if (toggleEl) {
+    toggleEl.addEventListener('change', function () {
+      vscode.postMessage({ type: 'toggleSkipWorktree', id: '' });
+    });
+  }
 
   // ── Boot ───────────────────────────────────────────────────────────────────
 

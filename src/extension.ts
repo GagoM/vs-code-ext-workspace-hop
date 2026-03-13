@@ -8,6 +8,7 @@ import { getColorForWorkspace, saveColorForWorkspace } from "./core/colorManager
 import { getNicknameForWorkspace } from "./core/nicknameManager";
 import { startFocusServer, FocusServer } from "./core/focusServer";
 import { applyWorkspaceColor, clearWorkspaceColor } from "./utils/applyColors";
+import { ensureGitFilterConfigured } from "./utils/gitFilter";
 import { showSwitcher } from "./switcher/switcherPanel";
 import { showColorPicker } from "./colorPicker/colorPickerPanel";
 import {
@@ -51,6 +52,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     await applyWorkspaceColor(color).catch(() => {
       // Non-fatal — might fail if workspace settings aren't writable
     });
+  }
+
+  // ── Git skip-worktree + clean filter ──────────────────────────────────────
+  if (workspacePath) {
+    const skipWorktreeEnabled = vscode.workspace
+      .getConfiguration("workspacehop")
+      .get<boolean>("manageGitSkipWorktree", true);
+    ensureGitFilterConfigured(workspacePath, context.extensionPath, skipWorktreeEnabled).catch(() => {});
   }
 
   // ── Focus HTTP server ─────────────────────────────────────────────────────
@@ -100,7 +109,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   initStatusBarTabs(context, instanceId);
 
   // ── Sidebar view ──────────────────────────────────────────────────────────
-  const sidebarProvider = new SidebarViewProvider(context, instanceId);
+  const sidebarProvider = new SidebarViewProvider(context, instanceId, workspacePath);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider("workspacehop.sidebarView", sidebarProvider)
   );
