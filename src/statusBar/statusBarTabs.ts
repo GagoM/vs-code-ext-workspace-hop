@@ -18,11 +18,16 @@ const FOLDER_ICON = "$(folder)";
 const DOT_ACTIVE    = "● "; // U+25CF BLACK CIRCLE — active window
 const DOT_INACTIVE  = "○ "; // U+25CB WHITE CIRCLE — inactive
 
+const DIM_COLOR = "#666666"; // muted color for disabled arrow
+
 // ─── Module-level state ───────────────────────────────────────────────────────
 
 const slotToId: string[] = Array(MAX_SLOTS).fill("");
 
 let tabItems: vscode.StatusBarItem[] = [];
+let prevItem: vscode.StatusBarItem;
+let nextItem: vscode.StatusBarItem;
+let currentPage = 0;
 let poll:     ReturnType<typeof setInterval> | null = null;
 let selfId    = "";
 
@@ -34,6 +39,29 @@ export function initStatusBarTabs(
 ): void {
   selfId = currentId;
 
+  // Prev-page arrow (leftmost, highest priority)
+  prevItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, PRI_BASE + 2);
+  prevItem.command = "workspacehop.prevPage";
+  ctx.subscriptions.push(
+    vscode.commands.registerCommand("workspacehop.prevPage", () => {
+      currentPage = Math.max(0, currentPage - 1);
+      refresh();
+    }),
+    prevItem
+  );
+
+  // Next-page arrow (just right of prev)
+  nextItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, PRI_BASE + 1);
+  nextItem.command = "workspacehop.nextPage";
+  ctx.subscriptions.push(
+    vscode.commands.registerCommand("workspacehop.nextPage", () => {
+      currentPage++;
+      refresh();
+    }),
+    nextItem
+  );
+
+  // Tab slots
   for (let i = 0; i < MAX_SLOTS; i++) {
     const tab   = vscode.window.createStatusBarItem(
       vscode.StatusBarAlignment.Left,
@@ -83,12 +111,45 @@ async function refresh(): Promise<void> {
     return;
   }
 
+  const maxVisible = vscode.workspace
+    .getConfiguration("workspacehop")
+    .get<number>("maxVisibleTabs", 5);
+
   const { sorted } = tabOrder.applyOrder(instances, tabOrder.readOrder());
 
   const home = os.homedir();
 
+  const totalPages = Math.max(1, Math.ceil(sorted.length / maxVisible));
+  currentPage = Math.max(0, Math.min(currentPage, totalPages - 1));
+
+  const start = currentPage * maxVisible;
+
+  // Show/hide arrow items
+  if (sorted.length > maxVisible) {
+    const hasPrev = currentPage > 0;
+    const hasNext = currentPage < totalPages - 1;
+
+    prevItem.text    = "$(chevron-left)";
+    prevItem.color   = hasPrev ? undefined : DIM_COLOR;
+    prevItem.tooltip = hasPrev
+      ? new vscode.MarkdownString(`Previous page (${currentPage} of ${totalPages})`)
+      : new vscode.MarkdownString(`Already at first page`);
+    prevItem.show();
+
+    nextItem.text    = "$(chevron-right)";
+    nextItem.color   = hasNext ? undefined : DIM_COLOR;
+    nextItem.tooltip = hasNext
+      ? new vscode.MarkdownString(`Next page (${currentPage + 2} of ${totalPages})`)
+      : new vscode.MarkdownString(`Already at last page`);
+    nextItem.show();
+  } else {
+    prevItem.hide();
+    nextItem.hide();
+  }
+
+  // Render current page's tabs (only up to maxVisible slots)
   for (let i = 0; i < MAX_SLOTS; i++) {
-    const inst = sorted[i];
+    const inst = i < maxVisible ? sorted[start + i] : undefined;
 
     if (!inst) {
       slotToId[i] = "";

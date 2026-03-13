@@ -22,10 +22,11 @@ import {
 import { createWorkspace } from "../core/workspaceCreator";
 
 interface WebviewMessage {
-  type: "focus" | "editNickname" | "openRecent" | "setColor" | "toggleSkipWorktree" | "reorder" | "createWorkspace";
+  type: "focus" | "editNickname" | "openRecent" | "setColor" | "toggleSkipWorktree" | "reorder" | "createWorkspace" | "setMaxVisibleTabs";
   id: string;
   fsPath?: string;
   order?: string[];
+  value?: number;
 }
 
 export class SidebarViewProvider implements vscode.WebviewViewProvider {
@@ -104,6 +105,11 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       } else if (msg.type === "createWorkspace") {
         await createWorkspace(this.context, this.workspacePath);
 
+      } else if (msg.type === "setMaxVisibleTabs" && msg.value !== undefined) {
+        const cfg = vscode.workspace.getConfiguration("workspacehop");
+        await cfg.update("maxVisibleTabs", msg.value, vscode.ConfigurationTarget.Global);
+        refreshStatusBarTabs();
+
       } else if (msg.type === "toggleSkipWorktree") {
         const cfg = vscode.workspace.getConfiguration("workspacehop");
         const current = cfg.get<boolean>("manageGitSkipWorktree", true);
@@ -141,7 +147,10 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     const skipWorktree = vscode.workspace
       .getConfiguration("workspacehop")
       .get<boolean>("manageGitSkipWorktree", true);
-    this.view.webview.html = buildHtml(sorted, this.currentId, recent, nonce, skipWorktree);
+    const maxVisibleTabs = vscode.workspace
+      .getConfiguration("workspacehop")
+      .get<number>("maxVisibleTabs", 5);
+    this.view.webview.html = buildHtml(sorted, this.currentId, recent, nonce, skipWorktree, maxVisibleTabs);
   }
 
   private startRefresh(): void {
@@ -186,9 +195,10 @@ function buildHtml(
   currentId: string,
   recent: RecentWorkspace[],
   nonce: string,
-  skipWorktree: boolean
+  skipWorktree: boolean,
+  maxVisibleTabs: number
 ): string {
-  const data = JSON.stringify({ instances, currentId, home: os.homedir(), recent, skipWorktree });
+  const data = JSON.stringify({ instances, currentId, home: os.homedir(), recent, skipWorktree, maxVisibleTabs });
 
   return /* html */`<!DOCTYPE html>
 <html lang="en">
@@ -242,6 +252,12 @@ function buildHtml(
             <strong>Global setting</strong> - applies to all workspaces.
           </div>
         </div>
+      </label>
+    </div>
+    <div class="settings-row">
+      <label class="settings-toggle settings-inline">
+        <span>Visible tabs in status bar</span>
+        <input type="number" id="max-visible-tabs" min="1" max="10" value="${maxVisibleTabs}" />
       </label>
     </div>
   </div>
@@ -540,6 +556,22 @@ body {
   cursor: pointer;
   flex-shrink: 0;
   accent-color: var(--vscode-focusBorder);
+}
+
+.settings-inline {
+  justify-content: space-between;
+}
+
+.settings-toggle input[type="number"] {
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3));
+  color: var(--vscode-input-foreground);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 11px;
+  width: 44px;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .info-tip {
@@ -957,6 +989,31 @@ const JS = `(function () {
   if (toggleEl) {
     toggleEl.addEventListener('change', function () {
       vscode.postMessage({ type: 'toggleSkipWorktree', id: '' });
+    });
+  }
+
+  // ── Max visible tabs setting ───────────────────────────────────────────────
+
+  var maxVisibleEl = document.getElementById('max-visible-tabs');
+  if (maxVisibleEl) {
+    var maxVisibleTimer;
+    function clampMaxVisible() {
+      var val = parseInt(maxVisibleEl.value, 10);
+      if (isNaN(val) || val < 1) { maxVisibleEl.value = '1'; val = 1; }
+      if (val > 10)               { maxVisibleEl.value = '10'; val = 10; }
+      return val;
+    }
+    maxVisibleEl.addEventListener('input', function () {
+      clearTimeout(maxVisibleTimer);
+      maxVisibleTimer = setTimeout(function () {
+        var val = clampMaxVisible();
+        vscode.postMessage({ type: 'setMaxVisibleTabs', id: '', value: val });
+      }, 400);
+    });
+    maxVisibleEl.addEventListener('blur', function () {
+      clearTimeout(maxVisibleTimer);
+      var val = clampMaxVisible();
+      vscode.postMessage({ type: 'setMaxVisibleTabs', id: '', value: val });
     });
   }
 

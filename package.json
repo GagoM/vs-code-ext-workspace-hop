@@ -1,5 +1,5 @@
 {
-  "publisher": "gagom",
+  "publisher": "Gilad Mautner",
   "license": "MIT",
   "name": "workspacehop",
   "displayName": "WorkspaceHop",
@@ -83,6 +83,13 @@
           "type": "boolean",
           "default": true,
           "description": "When enabled, WorkspaceHop sets git's skip-worktree flag on .vscode/settings.json so per-window colors don't appear as modified in git status. Disable if you prefer to manage this yourself."
+        },
+        "workspacehop.maxVisibleTabs": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Maximum number of workspace tabs visible in the status bar at a time. Use the ‹ › arrows to page through the rest."
         }
       }
     }
