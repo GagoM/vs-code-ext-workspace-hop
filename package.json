@@ -56,6 +56,10 @@
       {
         "command": "workspacehop.setColor",
         "title": "WorkspaceHop: Set Workspace Color"
+      },
+      {
+        "command": "workspacehop.createWorkspace",
+        "title": "WorkspaceHop: Create Workspace"
       }
     ],
     "keybindings": [

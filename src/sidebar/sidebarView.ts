@@ -19,9 +19,10 @@ import {
   openWorkspaceInNewWindow,
   RecentWorkspace,
 } from "../switcher/recentWorkspaces";
+import { createWorkspace } from "../core/workspaceCreator";
 
 interface WebviewMessage {
-  type: "focus" | "editNickname" | "openRecent" | "setColor" | "toggleSkipWorktree" | "reorder";
+  type: "focus" | "editNickname" | "openRecent" | "setColor" | "toggleSkipWorktree" | "reorder" | "createWorkspace";
   id: string;
   fsPath?: string;
   order?: string[];
@@ -99,6 +100,9 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       } else if (msg.type === "reorder" && msg.order) {
         tabOrder.writeOrder(msg.order);
         refreshStatusBarTabs();
+
+      } else if (msg.type === "createWorkspace") {
+        await createWorkspace(this.context, this.workspacePath);
 
       } else if (msg.type === "toggleSkipWorktree") {
         const cfg = vscode.workspace.getConfiguration("workspacehop");
@@ -210,6 +214,12 @@ function buildHtml(
         spellcheck="false"
         aria-label="Filter windows"
       />
+      <button id="create-workspace-btn" class="create-btn" title="Create Workspace" aria-label="Create Workspace">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z"/>
+        </svg>
+        <span class="create-btn-label">New Workspace</span>
+      </button>
     </div>
     <ul class="list" id="list" role="listbox" aria-label="Open windows"></ul>
   </div>
@@ -599,6 +609,30 @@ body {
 .obs-item.drag-over {
   border-top: 2px solid var(--vscode-focusBorder);
 }
+
+/* ── Create workspace button ── */
+.create-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--vscode-descriptionForeground);
+  padding: 3px 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: opacity 0.1s, background 0.1s;
+}
+.create-btn:hover {
+  opacity: 1;
+  background: var(--vscode-toolbar-hoverBackground, rgba(128,128,128,0.2));
+}
+.create-btn-label {
+  font-size: 11px;
+  white-space: nowrap;
+}
 `;
 
 // ─── Embedded JS ──────────────────────────────────────────────────────────────
@@ -923,6 +957,15 @@ const JS = `(function () {
   if (toggleEl) {
     toggleEl.addEventListener('change', function () {
       vscode.postMessage({ type: 'toggleSkipWorktree', id: '' });
+    });
+  }
+
+  // ── Create workspace button ────────────────────────────────────────────────
+
+  var createBtn = document.getElementById('create-workspace-btn');
+  if (createBtn) {
+    createBtn.addEventListener('click', function () {
+      vscode.postMessage({ type: 'createWorkspace', id: '' });
     });
   }
 

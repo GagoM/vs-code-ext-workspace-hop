@@ -17,6 +17,7 @@ import {
   refreshStatusBarTabs,
 } from "./statusBar/statusBarTabs";
 import { SidebarViewProvider } from "./sidebar/sidebarView";
+import { createWorkspace, runPendingCommand } from "./core/workspaceCreator";
 
 // ─── Module-level state (lifetime = one activation) ──────────────────────────
 
@@ -52,6 +53,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     await applyWorkspaceColor(color).catch(() => {
       // Non-fatal — might fail if workspace settings aren't writable
     });
+  }
+
+  // ── Post-create command (set by another window via pending-commands.json) ──
+  if (workspacePath) {
+    runPendingCommand(workspacePath);
   }
 
   // ── Git skip-worktree + clean filter ──────────────────────────────────────
@@ -131,6 +137,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     vscode.commands.registerCommand("workspacehop.openSwitcher", () =>
       showSwitcher(context, instanceId)
+    ),
+
+    vscode.commands.registerCommand("workspacehop.createWorkspace", () =>
+      createWorkspace(context, workspacePath)
     ),
 
     vscode.commands.registerCommand("workspacehop.setColor", () => {
