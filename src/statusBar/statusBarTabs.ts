@@ -3,7 +3,8 @@ import * as path from "path";
 import * as os   from "os";
 import * as vscode from "vscode";
 
-import * as registry from "../core/registry";
+import * as registry  from "../core/registry";
+import * as tabOrder  from "../core/tabOrder";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -82,7 +83,7 @@ async function refresh(): Promise<void> {
     return;
   }
 
-  const sorted = [...instances].sort((a, b) => a.createdAt - b.createdAt);
+  const { sorted } = tabOrder.applyOrder(instances, tabOrder.readOrder());
 
   const home = os.homedir();
 

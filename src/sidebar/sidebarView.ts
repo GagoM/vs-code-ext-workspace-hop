@@ -3,7 +3,9 @@ import * as http from "http";
 import * as os from "os";
 import * as vscode from "vscode";
 
-import * as registry from "../core/registry";
+import * as registry  from "../core/registry";
+import * as tabOrder  from "../core/tabOrder";
+import { refreshStatusBarTabs } from "../statusBar/statusBarTabs";
 import {
   promptAndSaveNickname,
   saveNicknameForWorkspace,
@@ -19,14 +21,17 @@ import {
 } from "../switcher/recentWorkspaces";
 
 interface WebviewMessage {
-  type: "focus" | "editNickname" | "openRecent" | "setColor" | "toggleSkipWorktree";
+  type: "focus" | "editNickname" | "openRecent" | "setColor" | "toggleSkipWorktree" | "reorder";
   id: string;
   fsPath?: string;
+  order?: string[];
 }
 
 export class SidebarViewProvider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
   private refreshTimer?: ReturnType<typeof setInterval>;
+
+  private lastFingerprint = "";
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -91,6 +96,10 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
           openWorkspaceInNewWindow(msg.fsPath);
         }
 
+      } else if (msg.type === "reorder" && msg.order) {
+        tabOrder.writeOrder(msg.order);
+        refreshStatusBarTabs();
+
       } else if (msg.type === "toggleSkipWorktree") {
         const cfg = vscode.workspace.getConfiguration("workspacehop");
         const current = cfg.get<boolean>("manageGitSkipWorktree", true);
@@ -112,7 +121,16 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
   async refresh(): Promise<void> {
     if (!this.view) { return; }
     const instances = await registry.readAll();
-    const sorted = [...instances].sort((a, b) => a.createdAt - b.createdAt);
+    const savedOrder = tabOrder.readOrder();
+    const { sorted, updatedOrder } = tabOrder.applyOrder(instances, savedOrder);
+    if (JSON.stringify(updatedOrder) !== JSON.stringify(savedOrder)) {
+      tabOrder.writeOrder(updatedOrder);
+    }
+
+    const fp = sorted.map(i => `${i.id}:${i.color}:${i.nickname ?? ''}:${i.branch}`).join('|');
+    if (fp === this.lastFingerprint) { return; }
+    this.lastFingerprint = fp;
+
     const openPaths = new Set(instances.map((i) => i.workspacePath).filter(Boolean));
     const recent = await getRecentWorkspaces(openPaths);
     const nonce = crypto.randomBytes(16).toString("hex");
@@ -211,7 +229,7 @@ function buildHtml(
           </svg>
           <div class="info-tooltip">
             Sets <code>git skip-worktree</code> on <code>.vscode/settings.json</code> so per-window colors never show as modified in <code>git status</code> or get accidentally committed.<br><br>
-            <strong>Global setting</strong> — applies to all workspaces.
+            <strong>Global setting</strong> - applies to all workspaces.
           </div>
         </div>
       </label>
@@ -535,9 +553,7 @@ body {
 
 .info-tooltip {
   display: none;
-  position: absolute;
-  bottom: calc(100% + 6px);
-  right: 0;
+  position: fixed;
   width: 220px;
   background: var(--vscode-editorHoverWidget-background, #1e1e1e);
   border: 1px solid var(--vscode-editorHoverWidget-border, rgba(128,128,128,0.3));
@@ -562,8 +578,26 @@ body {
   color: var(--vscode-foreground);
 }
 
-.info-tip:hover .info-tooltip {
-  display: block;
+/* ── Drag handle ── */
+.obs-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  flex-shrink: 0;
+  margin-left: 4px;
+  opacity: 0;
+  cursor: grab;
+  color: var(--vscode-descriptionForeground);
+  transition: opacity 0.1s;
+}
+.obs-item:hover .obs-drag-handle { opacity: 0.4; }
+.obs-item.dragging {
+  opacity: 0.4;
+  background: var(--vscode-list-hoverBackground);
+}
+.obs-item.drag-over {
+  border-top: 2px solid var(--vscode-focusBorder);
 }
 `;
 
@@ -606,6 +640,12 @@ const JS = `(function () {
   var WORKSPACE_SVG =
     '<svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">' +
     '<path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"/>' +
+    '</svg>';
+
+  var GRIP_SVG =
+    '<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">' +
+    '<circle cx="2" cy="2" r="1"/><circle cx="2" cy="5" r="1"/><circle cx="2" cy="8" r="1"/>' +
+    '<circle cx="5" cy="2" r="1"/><circle cx="5" cy="5" r="1"/><circle cx="5" cy="8" r="1"/>' +
     '</svg>';
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -661,6 +701,13 @@ const JS = `(function () {
       var li = document.createElement('li');
       li.className = 'obs-item' + (!matches ? ' faded' : '');
       li.setAttribute('role', 'option');
+      li.setAttribute('draggable', 'true');
+      li.dataset.workspacePath = inst.workspacePath;
+
+      // Drag handle
+      var grip = document.createElement('div');
+      grip.className = 'obs-drag-handle';
+      grip.innerHTML = GRIP_SVG;
 
       // Left accent bar
       var accent = document.createElement('div');
@@ -740,6 +787,7 @@ const JS = `(function () {
         dot.style.background = 'transparent';
       }
 
+      li.appendChild(grip);
       li.appendChild(accent);
       li.appendChild(content);
       li.appendChild(colorBtn);
@@ -750,6 +798,7 @@ const JS = `(function () {
         vscode.postMessage({ type: 'focus', id: inst.id });
       });
 
+      attachDragListeners(li);
       listEl.appendChild(li);
     });
 
@@ -804,6 +853,64 @@ const JS = `(function () {
     }
   }
 
+  // ── Drag-and-drop reordering ───────────────────────────────────────────────
+
+  var dragSrcEl = null;
+
+  function onDragStart(e) {
+    dragSrcEl = this;
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  }
+
+  function onDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    listEl.querySelectorAll('.obs-item').forEach(function (el) {
+      el.classList.remove('drag-over');
+    });
+    this.classList.add('drag-over');
+  }
+
+  function onDragLeave() {
+    this.classList.remove('drag-over');
+  }
+
+  function onDrop(e) {
+    e.preventDefault();
+    if (dragSrcEl && dragSrcEl !== this) {
+      var items = Array.from(listEl.querySelectorAll('.obs-item[draggable]'));
+      var fromIdx = items.indexOf(dragSrcEl);
+      var toIdx   = items.indexOf(this);
+      if (fromIdx < toIdx) {
+        this.parentNode.insertBefore(dragSrcEl, this.nextSibling);
+      } else {
+        this.parentNode.insertBefore(dragSrcEl, this);
+      }
+      var newOrder = Array.from(listEl.querySelectorAll('.obs-item[draggable]'))
+        .map(function (el) { return el.dataset.workspacePath; })
+        .filter(Boolean);
+      vscode.postMessage({ type: 'reorder', id: '', order: newOrder });
+    }
+    this.classList.remove('drag-over');
+  }
+
+  function onDragEnd() {
+    this.classList.remove('dragging');
+    listEl.querySelectorAll('.obs-item').forEach(function (el) {
+      el.classList.remove('drag-over');
+    });
+    dragSrcEl = null;
+  }
+
+  function attachDragListeners(li) {
+    li.addEventListener('dragstart', onDragStart);
+    li.addEventListener('dragover',  onDragOver);
+    li.addEventListener('dragleave', onDragLeave);
+    li.addEventListener('drop',      onDrop);
+    li.addEventListener('dragend',   onDragEnd);
+  }
+
   // ── Search ─────────────────────────────────────────────────────────────────
 
   searchEl.addEventListener('input', function () {
@@ -818,6 +925,54 @@ const JS = `(function () {
       vscode.postMessage({ type: 'toggleSkipWorktree', id: '' });
     });
   }
+
+  // ── Info tooltip positioning ───────────────────────────────────────────────
+
+  document.querySelectorAll('.info-tip').forEach(function (tip) {
+    var tooltip = tip.querySelector('.info-tooltip');
+    if (!tooltip) { return; }
+    tip.addEventListener('mouseenter', function () {
+      // Render off-screen first to measure actual height
+      tooltip.style.visibility = 'hidden';
+      tooltip.style.display = 'block';
+      tooltip.style.left = '0px';
+      tooltip.style.top  = '0px';
+
+      var iconRect = tip.getBoundingClientRect();
+      var ttWidth  = tooltip.offsetWidth  || 220;
+      var ttHeight = tooltip.offsetHeight || 120;
+      var gap      = 6;
+      var vw       = window.innerWidth;
+      var vh       = window.innerHeight;
+
+      // Vertical: prefer above, fall back to below
+      var spaceAbove = iconRect.top;
+      var spaceBelow = vh - iconRect.bottom;
+      var top;
+      if (spaceAbove >= ttHeight + gap) {
+        top = iconRect.top - ttHeight - gap;
+      } else if (spaceBelow >= ttHeight + gap) {
+        top = iconRect.bottom + gap;
+      } else if (spaceAbove >= spaceBelow) {
+        top = Math.max(0, iconRect.top - ttHeight - gap);
+      } else {
+        top = iconRect.bottom + gap;
+      }
+
+      // Horizontal: align right edge of tooltip to right edge of icon, then clamp
+      var left = iconRect.right - ttWidth;
+      if (left < 4) { left = 4; }
+      if (left + ttWidth > vw - 4) { left = vw - ttWidth - 4; }
+
+      tooltip.style.top        = top + 'px';
+      tooltip.style.left       = left + 'px';
+      tooltip.style.right      = 'auto';
+      tooltip.style.visibility = 'visible';
+    });
+    tip.addEventListener('mouseleave', function () {
+      tooltip.style.display = 'none';
+    });
+  });
 
   // ── Boot ───────────────────────────────────────────────────────────────────
 
