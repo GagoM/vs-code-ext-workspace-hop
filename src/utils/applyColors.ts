@@ -41,6 +41,9 @@ export function getContrastColor(hex: string): string {
  * Writes workspace color customizations to `.vscode/settings.json`.
  * Uses ConfigurationTarget.Workspace so each window has its own independent
  * color — this is the only VSCode scope that achieves true per-window isolation.
+ *
+ * Skips the write if the color is already correctly applied to avoid triggering
+ * a settings reload on startup (which causes a brief color flash).
  */
 export async function applyWorkspaceColor(hex: string): Promise<void> {
   if (!vscode.workspace.workspaceFolders?.length) {
@@ -55,20 +58,28 @@ export async function applyWorkspaceColor(hex: string): Promise<void> {
     config.inspect<Record<string, string>>("workbench.colorCustomizations")
       ?.workspaceValue ?? {};
 
+  const desired: Record<string, string> = {
+    "titleBar.activeBackground":      hex,
+    "titleBar.inactiveBackground":    inactive,
+    "titleBar.activeForeground":      fg,
+    "titleBar.inactiveForeground":    fg + "99",
+    "activityBar.background":         hex,
+    "activityBar.foreground":         fg,
+    "activityBar.inactiveForeground": fg + "99",
+    // Dark neutral canvas so WorkspaceHop's coloured tab text is always readable.
+    "statusBar.background":           "#1a1a1a",
+  };
+
+  // Skip the write if all managed keys already have the correct values.
+  // This prevents an unnecessary settings reload on startup that causes a
+  // brief flash where the theme color appears before our color re-lands.
+  if (Object.entries(desired).every(([k, v]) => current[k] === v)) {
+    return;
+  }
+
   await config.update(
     "workbench.colorCustomizations",
-    {
-      ...current,
-      "titleBar.activeBackground":      hex,
-      "titleBar.inactiveBackground":    inactive,
-      "titleBar.activeForeground":      fg,
-      "titleBar.inactiveForeground":    fg + "99",
-      "activityBar.background":         hex,
-      "activityBar.foreground":         fg,
-      "activityBar.inactiveForeground": fg + "99",
-      // Dark neutral canvas so WorkspaceHop's coloured tab text is always readable.
-      "statusBar.background":           "#1a1a1a",
-    },
+    { ...current, ...desired },
     vscode.ConfigurationTarget.Workspace
   );
 }
