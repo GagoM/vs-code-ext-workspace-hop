@@ -10,7 +10,8 @@ import {
   promptAndSaveNickname,
   saveNicknameForWorkspace,
 } from "../core/nicknameManager";
-import { saveColorForWorkspace } from "../core/colorManager";
+import { saveColorForWorkspace, getColorForWorkspace } from "../core/colorManager";
+import { getBranch } from "../core/git";
 import { applyWorkspaceColor, clearWorkspaceColor } from "../utils/applyColors";
 import { ensureGitFilterConfigured } from "../utils/gitFilter";
 import { showColorPicker } from "../colorPicker/colorPickerPanel";
@@ -143,6 +144,10 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
 
     const openPaths = new Set(instances.map((i) => i.workspacePath).filter(Boolean));
     const recent = await getRecentWorkspaces(openPaths);
+    await Promise.all(recent.map(async (r) => {
+      r.color = getColorForWorkspace(this.context, r.fsPath);
+      r.branch = await getBranch(r.fsPath) || undefined;
+    }));
     const nonce = crypto.randomBytes(16).toString("hex");
     const skipWorktree = vscode.workspace
       .getConfiguration("workspacehop")
@@ -482,16 +487,33 @@ body {
   display: flex;
   align-items: center;
   border-radius: 6px;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
   cursor: pointer;
   transition: background 0.1s;
-  padding: 7px 10px 7px 10px;
-  gap: 8px;
+  padding: 4px 10px 4px 10px;
+  gap: 6px;
 }
 .obs-recent-item:last-child { margin-bottom: 0; }
 .obs-recent-item:hover    { background: var(--vscode-list-hoverBackground); }
 .obs-recent-item.selected { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
 .obs-recent-item.faded    { opacity: 0.35; }
+
+.obs-recent-item .obs-accent {
+  margin: 3px 0 3px 0;
+}
+
+.obs-recent-item .obs-content {
+  padding: 3px 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.obs-recent-item .obs-top {
+  margin-bottom: 0;
+  flex-shrink: 1;
+  min-width: 0;
+}
 
 .obs-recent-icon {
   display: flex;
@@ -731,15 +753,6 @@ const JS = `(function () {
     return p || '';
   }
 
-  function relativeTime(ts) {
-    var diff = Date.now() - ts;
-    if (diff < 10000)    { return 'now'; }
-    if (diff < 60000)    { return Math.floor(diff / 1000) + 's'; }
-    if (diff < 3600000)  { return Math.floor(diff / 60000) + 'm'; }
-    if (diff < 86400000) { return Math.floor(diff / 3600000) + 'h'; }
-    return Math.floor(diff / 86400000) + 'd';
-  }
-
   // ── Rendering ──────────────────────────────────────────────────────────────
 
   function render(query) {
@@ -806,16 +819,7 @@ const JS = `(function () {
       pathEl.className = 'obs-path';
       pathEl.textContent = abbreviatePath(inst.workspacePath);
 
-      var timeEl = document.createElement('span');
-      timeEl.className = 'obs-time';
-      timeEl.textContent = isCurrent ? 'active' : relativeTime(inst.lastActive);
-      if (isCurrent && color) {
-        timeEl.style.color = color;
-        timeEl.style.opacity = '0.85';
-      }
-
       bottom.appendChild(pathEl);
-      bottom.appendChild(timeEl);
       content.appendChild(top);
       content.appendChild(bottom);
 
@@ -894,21 +898,44 @@ const JS = `(function () {
         li.className = 'obs-recent-item' + (!matches ? ' faded' : '');
         li.setAttribute('role', 'option');
 
+        if (r.color) {
+          var recentAccent = document.createElement('div');
+          recentAccent.className = 'obs-accent';
+          recentAccent.style.background = r.color;
+          li.appendChild(recentAccent);
+        }
+
         var icon = document.createElement('div');
         icon.className = 'obs-recent-icon';
         icon.innerHTML = r.kind === 'workspace' ? WORKSPACE_SVG : FOLDER_SVG;
 
+        var recentContent = document.createElement('div');
+        recentContent.className = 'obs-content';
+
+        var recentTop = document.createElement('div');
+        recentTop.className = 'obs-top';
+
         var name = document.createElement('span');
         name.className = 'obs-recent-name';
         name.textContent = r.label;
+        recentTop.appendChild(name);
+
+        if (r.branch) {
+          var recentBranch = document.createElement('span');
+          recentBranch.className = 'obs-branch';
+          recentBranch.innerHTML = BRANCH_SVG + esc(r.branch);
+          recentTop.appendChild(recentBranch);
+        }
 
         var pathSpan = document.createElement('span');
         pathSpan.className = 'obs-recent-path';
         pathSpan.textContent = abbreviatePath(r.fsPath);
 
+        recentContent.appendChild(recentTop);
+        recentContent.appendChild(pathSpan);
+
         li.appendChild(icon);
-        li.appendChild(name);
-        li.appendChild(pathSpan);
+        li.appendChild(recentContent);
 
         li.addEventListener('click', function () {
           vscode.postMessage({ type: 'openRecent', id: '', fsPath: r.fsPath });

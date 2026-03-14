@@ -7,6 +7,8 @@ export interface RecentWorkspace {
   label: string;   // display name (folder basename or .code-workspace filename)
   fsPath: string;  // absolute filesystem path
   kind: "folder" | "workspace";
+  branch?: string; // current git branch, omitted if not a git repo
+  color?: string;  // saved workspace color hex, omitted if none set
 }
 
 /** Maximum number of recent entries shown in the switcher. */
