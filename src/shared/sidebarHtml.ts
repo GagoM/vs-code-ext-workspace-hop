@@ -5,6 +5,17 @@ import { RecentWorkspace } from "../switcher/recentWorkspaces";
 
 export type HtmlMode = "sidebar" | "modal";
 
+const INFO_ICON_SVG = `<svg class="info-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 3a.75.75 0 1 1 0 1.5A.75.75 0 0 1 8 4zm-.25 3h1.5v4.5h-1.5V7z"/>
+          </svg>`;
+
+function infoTip(content: string): string {
+  return `<div class="info-tip">
+          ${INFO_ICON_SVG}
+          <div class="info-tooltip">${content}</div>
+        </div>`;
+}
+
 export function buildHtml(
   instances: InstanceEntry[],
   currentId: string,
@@ -52,20 +63,15 @@ export function buildHtml(
       <label class="settings-toggle">
         <input type="checkbox" id="skip-worktree-toggle" ${skipWorktree ? "checked" : ""}>
         <span>Hide colors from git status</span>
-        <div class="info-tip">
-          <svg class="info-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-            <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 3a.75.75 0 1 1 0 1.5A.75.75 0 0 1 8 4zm-.25 3h1.5v4.5h-1.5V7z"/>
-          </svg>
-          <div class="info-tooltip">
-            Sets <code>git skip-worktree</code> on <code>.vscode/settings.json</code> so per-window colors never show as modified in <code>git status</code> or get accidentally committed.<br><br>
-            <strong>Global setting</strong> - applies to all workspaces.
-          </div>
-        </div>
+        ${infoTip(`Sets <code>git skip-worktree</code> on <code>.vscode/settings.json</code> so per-window colors never show as modified in <code>git status</code> or get accidentally committed.<br><br>
+            <strong>Global setting</strong> - applies to all workspaces.`)}
       </label>
     </div>
     <div class="settings-row">
-      <label class="settings-toggle settings-inline">
+      <label class="settings-toggle">
         <span>Visible tabs in status bar</span>
+        ${infoTip(`Controls how many open tabs are shown in the status bar before scrolling kicks in.<br><br>
+            <strong>Range:</strong> 1–10 tabs.`)}
         <input type="number" id="max-visible-tabs" min="1" max="10" value="${maxVisibleTabs}" />
       </label>
     </div>
@@ -108,20 +114,15 @@ export function buildHtml(
       <label class="settings-toggle">
         <input type="checkbox" id="skip-worktree-toggle" ${skipWorktree ? "checked" : ""}>
         <span>Hide colors from git status</span>
-        <div class="info-tip">
-          <svg class="info-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-            <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 3a.75.75 0 1 1 0 1.5A.75.75 0 0 1 8 4zm-.25 3h1.5v4.5h-1.5V7z"/>
-          </svg>
-          <div class="info-tooltip">
-            Sets <code>git skip-worktree</code> on <code>.vscode/settings.json</code> so per-window colors never show as modified in <code>git status</code> or get accidentally committed.<br><br>
-            <strong>Global setting</strong> - applies to all workspaces.
-          </div>
-        </div>
+        ${infoTip(`Sets <code>git skip-worktree</code> on <code>.vscode/settings.json</code> so per-window colors never show as modified in <code>git status</code> or get accidentally committed.<br><br>
+            <strong>Global setting</strong> - applies to all workspaces.`)}
       </label>
     </div>
     <div class="settings-row">
-      <label class="settings-toggle settings-inline">
+      <label class="settings-toggle">
         <span>Visible tabs in status bar</span>
+        ${infoTip(`Controls how many open tabs are shown in the status bar before scrolling kicks in.<br><br>
+            <strong>Range:</strong> 1–10 tabs.`)}
         <input type="number" id="max-visible-tabs" min="1" max="10" value="${maxVisibleTabs}" />
       </label>
     </div>
@@ -455,10 +456,6 @@ body {
   cursor: pointer;
   flex-shrink: 0;
   accent-color: var(--vscode-focusBorder);
-}
-
-.settings-inline {
-  justify-content: space-between;
 }
 
 .settings-toggle input[type="number"] {
