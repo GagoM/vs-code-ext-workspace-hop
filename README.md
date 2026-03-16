@@ -14,7 +14,7 @@ WorkspaceHop gives each VS Code workspace a persistent identity: a color, a nick
 
 ### Status Bar Tabs
 
-Every open VS Code window appears as a clickable tab in the status bar. Tabs show the workspace nickname, git branch, or folder name — whichever is most specific — along with an active/inactive indicator. Clicking your own tab opens the color picker; clicking another window's tab brings it into focus.
+Every open VS Code window appears as a clickable tab in the status bar. Tabs show the workspace nickname, git branch, or folder name — whichever is most specific — along with an active/inactive indicator. Clicking your own tab opens the color picker; clicking another window's tab brings it into focus. When you have more windows than the configured limit, `‹` and `›` arrows let you page through the rest.
 
 ![Opening the switcher with keyboard shortcut, filtering, and selecting a window](images/tabs-switching.gif)
 
@@ -84,6 +84,7 @@ During creation you can set a **nickname**, and WorkspaceHop will automatically 
 | Setting | Type | Default | Description |
 |---|---|---|---|
 | `workspacehop.accentOpacity` | number | `1` | Opacity of the color accent in the status bar (0–1) |
+| `workspacehop.maxVisibleTabs` | number | `5` | Maximum number of workspace tabs shown in the status bar at once (1–10). Use `‹` `›` arrows to page through the rest. |
 | `workspacehop.manageGitSkipWorktree` | boolean | `true` | When enabled, sets git's `skip-worktree` flag on `.vscode/settings.json` so per-window color changes don't appear as modified in `git status`. Disable if you prefer to manage this yourself. |
 
 ---
