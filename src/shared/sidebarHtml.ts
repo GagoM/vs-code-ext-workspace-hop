@@ -595,6 +595,7 @@ const JS = `(function () {
   'use strict';
 
   var vscode    = acquireVsCodeApi();
+  window.__vscode = vscode;
   var instances = __DATA__.instances;
   var recent    = __DATA__.recent;
   var currentId = __DATA__.currentId;
@@ -1016,56 +1017,66 @@ const JS = `(function () {
 const MODAL_EXTRA_JS = `(function () {
   'use strict';
 
-  var vscode    = acquireVsCodeApi();
-  var instances = __DATA__.instances;
-  var recent    = __DATA__.recent;
-  var listEl    = document.getElementById('list');
-  var searchEl  = document.getElementById('search');
-  var selIdx    = 0;
+  var vscode   = window.__vscode;
+  var listEl   = document.getElementById('list');
+  var searchEl = document.getElementById('search');
+  var selPos   = 0; // position among visible (non-faded) navigable items
 
-  function totalItems() {
-    return instances.length + recent.length;
+  function getNavigableItems() {
+    return Array.from(listEl.querySelectorAll('[data-idx]:not(.faded)'));
   }
 
   function updateSelection() {
+    var items = getNavigableItems();
     listEl.querySelectorAll('[data-idx]').forEach(function (el) {
-      var idx = parseInt(el.dataset.idx, 10);
-      var sel = idx === selIdx;
+      var pos = items.indexOf(el);
+      var sel = pos !== -1 && pos === selPos;
       el.classList.toggle('selected', sel);
       el.setAttribute('aria-selected', sel ? 'true' : 'false');
     });
   }
 
   function scrollSelected() {
-    var el = listEl.querySelector('.obs-item.selected, .obs-recent-item.selected');
+    var items = getNavigableItems();
+    var el = items[selPos];
     if (el) { el.scrollIntoView({ block: 'nearest' }); }
+  }
+
+  function activateSelected() {
+    var items = getNavigableItems();
+    var el = items[selPos];
+    if (!el) { return; }
+    var idx = parseInt(el.dataset.idx, 10);
+    var instances = __DATA__.instances;
+    var recent    = __DATA__.recent;
+    if (idx < instances.length) {
+      var inst = instances[idx];
+      if (inst) { vscode.postMessage({ type: 'focus', id: inst.id }); }
+    } else {
+      var r = recent[idx - instances.length];
+      if (r) { vscode.postMessage({ type: 'openRecent', id: '', fsPath: r.fsPath }); }
+    }
   }
 
   document.addEventListener('keydown', function (e) {
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        selIdx = Math.min(selIdx + 1, totalItems() - 1);
+        selPos = Math.min(selPos + 1, getNavigableItems().length - 1);
         updateSelection();
         scrollSelected();
         break;
 
       case 'ArrowUp':
         e.preventDefault();
-        selIdx = Math.max(selIdx - 1, 0);
+        selPos = Math.max(selPos - 1, 0);
         updateSelection();
         scrollSelected();
         break;
 
       case 'Enter':
         e.preventDefault();
-        if (selIdx < instances.length) {
-          var inst = instances[selIdx];
-          if (inst) { vscode.postMessage({ type: 'focus', id: inst.id }); }
-        } else {
-          var r = recent[selIdx - instances.length];
-          if (r) { vscode.postMessage({ type: 'openRecent', id: '', fsPath: r.fsPath }); }
-        }
+        activateSelected();
         break;
 
       case 'Escape':
@@ -1076,17 +1087,21 @@ const MODAL_EXTRA_JS = `(function () {
 
   // Re-bind search to reset selection
   searchEl.addEventListener('input', function () {
-    selIdx = 0;
+    selPos = 0;
     updateSelection();
   });
 
-  // Add mouseenter handlers for items with data-idx
+  // Hover updates selection position among navigable items
   listEl.addEventListener('mouseover', function (e) {
     var target = e.target;
     while (target && target !== listEl) {
-      if (target.dataset && target.dataset.idx !== undefined) {
-        selIdx = parseInt(target.dataset.idx, 10);
-        updateSelection();
+      if (target.dataset && target.dataset.idx !== undefined && !target.classList.contains('faded')) {
+        var items = getNavigableItems();
+        var pos = items.indexOf(target);
+        if (pos !== -1) {
+          selPos = pos;
+          updateSelection();
+        }
         break;
       }
       target = target.parentElement;
