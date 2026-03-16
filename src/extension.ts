@@ -49,23 +49,35 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     ? getNicknameForWorkspace(context, workspacePath) ?? ""
     : "";
 
+  // ── Git skip-worktree + clean filter ──────────────────────────────────────
+  // Helper so the idempotent call can be made in two places below.
+  const skipWorktreeEnabled = workspacePath
+    ? vscode.workspace
+        .getConfiguration("workspacehop")
+        .get<boolean>("manageGitSkipWorktree", true)
+    : false;
+  const applyGitFilter = (): void => {
+    if (workspacePath) {
+      ensureGitFilterConfigured(workspacePath, context.extensionPath, skipWorktreeEnabled).catch(() => {});
+    }
+  };
+
+  // First attempt: covers workspaces where .vscode/settings.json already exists.
+  applyGitFilter();
+
   if (color) {
     await applyWorkspaceColor(color).catch(() => {
       // Non-fatal — might fail if workspace settings aren't writable
     });
+    // Second attempt: on a brand-new workspace, applyWorkspaceColor() creates
+    // .vscode/settings.json. The first call above no-ops when the file is absent,
+    // so we re-run here to ensure skip-worktree is applied after the file exists.
+    applyGitFilter();
   }
 
   // ── Post-create command (set by another window via pending-commands.json) ──
   if (workspacePath) {
     runPendingCommand(workspacePath);
-  }
-
-  // ── Git skip-worktree + clean filter ──────────────────────────────────────
-  if (workspacePath) {
-    const skipWorktreeEnabled = vscode.workspace
-      .getConfiguration("workspacehop")
-      .get<boolean>("manageGitSkipWorktree", true);
-    ensureGitFilterConfigured(workspacePath, context.extensionPath, skipWorktreeEnabled).catch(() => {});
   }
 
   // ── Focus HTTP server ─────────────────────────────────────────────────────

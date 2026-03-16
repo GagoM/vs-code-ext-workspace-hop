@@ -26,6 +26,15 @@ function writePending(data: PendingCommands): void {
   fs.writeFileSync(PENDING_FILE, JSON.stringify(data, null, 2), "utf8");
 }
 
+// Lazily-created output channel — shared for the lifetime of the extension process.
+let _outputChannel: vscode.OutputChannel | undefined;
+function getOutputChannel(): vscode.OutputChannel {
+  if (!_outputChannel) {
+    _outputChannel = vscode.window.createOutputChannel("WorkspaceHop");
+  }
+  return _outputChannel;
+}
+
 /** Called by the new window on activation to claim and run its pending command. */
 export function runPendingCommand(workspacePath: string): void {
   const pending = readPending();
@@ -36,10 +45,40 @@ export function runPendingCommand(workspacePath: string): void {
   delete pending[workspacePath];
   writePending(pending);
 
+  const label = path.basename(workspacePath);
+  const channel = getOutputChannel();
+
+  channel.appendLine(`[${label}] Running: ${cmd}`);
+
   vscode.window.showInformationMessage(
-    `WorkspaceHop: Running "${cmd}" in ${path.basename(workspacePath)}…`
-  );
-  cp.spawn(cmd, { shell: true, cwd: workspacePath, detached: true, stdio: "ignore" }).unref();
+    `WorkspaceHop: Running "${cmd}" in ${label}…`,
+    "View Live Output"
+  ).then((choice) => {
+    if (choice === "View Live Output") { channel.show(); }
+  });
+
+  const proc = cp.spawn(cmd, { shell: true, cwd: workspacePath });
+
+  proc.stdout.on("data", (chunk: Buffer) => channel.append(chunk.toString()));
+  proc.stderr.on("data", (chunk: Buffer) => channel.append(chunk.toString()));
+
+  proc.on("close", (code) => {
+    const exitCode = code ?? 1;
+    channel.appendLine(`[${label}] Finished with exit code ${exitCode}`);
+
+    const succeeded = exitCode === 0;
+    const summary = succeeded
+      ? `WorkspaceHop: "${cmd}" finished ✓`
+      : `WorkspaceHop: "${cmd}" failed (exit ${exitCode})`;
+
+    const showFn = succeeded
+      ? vscode.window.showInformationMessage.bind(vscode.window)
+      : vscode.window.showErrorMessage.bind(vscode.window);
+
+    showFn(summary, "View Output").then((choice) => {
+      if (choice === "View Output") { channel.show(); }
+    });
+  });
 }
 
 const POST_CMDS_KEY = "workspacehop.postCreateCommands";
@@ -199,20 +238,48 @@ async function askPostCreateCommand(
   context: vscode.ExtensionContext
 ): Promise<string | undefined> {
   const history: string[] = context.globalState.get<string[]>(POST_CMDS_KEY, []);
-  const recentHint = history.length > 0
-    ? `Recent: ${history.slice(0, 3).join(", ")}. Leave empty to skip.`
-    : "Leave empty to skip.";
 
-  const input = await vscode.window.showInputBox({
-    title: "WorkspaceHop: Post-Create Command (optional)",
-    prompt: recentHint,
-    value: history[0] ?? "",
-    placeHolder: "e.g. npm install",
-  });
+  let cmd: string | undefined;
 
-  if (input === undefined) { return undefined; } // Esc = cancel entire flow
-  const cmd = input.trim();
-  if (!cmd) { return undefined; } // empty = skip
+  if (history.length > 0) {
+    // Show history as quick picks with options to enter new or skip
+    const NEW_CMD = "$(add) Enter a new command…";
+    const SKIP    = "$(circle-slash) Skip";
+
+    const pick = await vscode.window.showQuickPick(
+      [
+        ...history.map((c) => ({ label: `$(history) ${c}`, cmd: c })),
+        { label: NEW_CMD, cmd: NEW_CMD },
+        { label: SKIP,    cmd: SKIP    },
+      ],
+      {
+        title: "WorkspaceHop: Post-Create Command (optional)",
+        placeHolder: "Select a recent command or enter a new one",
+      }
+    );
+
+    if (pick === undefined) { return undefined; } // Esc = cancel entire flow
+    if (pick.cmd === SKIP)  { return undefined; }
+
+    if (pick.cmd === NEW_CMD) {
+      // Fall through to InputBox below
+    } else {
+      cmd = pick.cmd;
+    }
+  }
+
+  // InputBox: shown when history is empty OR user chose "Enter a new command…"
+  if (cmd === undefined) {
+    const input = await vscode.window.showInputBox({
+      title: "WorkspaceHop: Post-Create Command (optional)",
+      prompt: "Leave empty to skip.",
+      placeHolder: "e.g. npm install",
+    });
+
+    if (input === undefined) { return undefined; } // Esc = cancel entire flow
+    cmd = input.trim();
+    if (!cmd) { return undefined; } // empty = skip
+  }
 
   // Persist: push to front, deduplicate, cap at MAX_HISTORY
   const updated = [cmd, ...history.filter((c) => c !== cmd)].slice(0, MAX_HISTORY);

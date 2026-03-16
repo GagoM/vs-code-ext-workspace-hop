@@ -129,14 +129,26 @@ function isGitAvailable(): boolean {
   }
 }
 
-/** Walks up from startPath to find the `.git` directory. */
+/** Walks up from startPath to find the `.git` directory.
+ *  Handles both standard repos (.git is a directory) and worktrees
+ *  (.git is a file containing "gitdir: <path>"). */
 function findGitDir(startPath: string): string | null {
   let dir = startPath;
   while (true) {
     const candidate = path.join(dir, ".git");
     try {
-      if (fs.statSync(candidate).isDirectory()) {
+      const stat = fs.statSync(candidate);
+      if (stat.isDirectory()) {
         return candidate;
+      }
+      if (stat.isFile()) {
+        // Worktree: .git is a file with "gitdir: /path/to/actual/git/dir"
+        const content = fs.readFileSync(candidate, "utf8").trim();
+        const match = content.match(/^gitdir:\s*(.+)$/);
+        if (match) {
+          const resolved = path.resolve(dir, match[1].trim());
+          return fs.existsSync(resolved) ? resolved : null;
+        }
       }
     } catch {
       // Not found here — keep walking up

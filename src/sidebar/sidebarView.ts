@@ -137,7 +137,11 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       tabOrder.writeOrder(updatedOrder);
     }
 
-    const fp = sorted.map(i => `${i.id}:${i.color}:${i.nickname ?? ''}:${i.branch}`).join('|');
+    const skipWorktree = vscode.workspace
+      .getConfiguration("workspacehop")
+      .get<boolean>("manageGitSkipWorktree", true);
+    const fp = sorted.map(i => `${i.id}:${i.color}:${i.nickname ?? ''}:${i.branch}`).join('|')
+      + `|skipWorktree:${skipWorktree}`;
     if (fp === this.lastFingerprint) { return; }
     this.lastFingerprint = fp;
 
@@ -148,9 +152,6 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
       r.branch = await getBranch(r.fsPath) || undefined;
     }));
     const nonce = crypto.randomBytes(16).toString("hex");
-    const skipWorktree = vscode.workspace
-      .getConfiguration("workspacehop")
-      .get<boolean>("manageGitSkipWorktree", true);
     const maxVisibleTabs = vscode.workspace
       .getConfiguration("workspacehop")
       .get<number>("maxVisibleTabs", 5);
