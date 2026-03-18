@@ -66,13 +66,36 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   applyGitFilter();
 
   if (color) {
-    await applyWorkspaceColor(color).catch(() => {
+    await applyWorkspaceColor(color, true /* forceApply — ensures color re-lands after settings reload */).catch(() => {
       // Non-fatal — might fail if workspace settings aren't writable
     });
     // Second attempt: on a brand-new workspace, applyWorkspaceColor() creates
     // .vscode/settings.json. The first call above no-ops when the file is absent,
     // so we re-run here to ensure skip-worktree is applied after the file exists.
     applyGitFilter();
+
+    // ── Guard against VSCode's post-activation settings reload ───────────────
+    // VSCode sometimes resets workbench.colorCustomizations after the extension
+    // activates (its internal config reload races with our apply call). We watch
+    // for such changes during a short startup window and immediately re-apply.
+    const startupGuardUntil = Date.now() + 5000;
+    const startupGuard = vscode.workspace.onDidChangeConfiguration(async (e) => {
+      if (!e.affectsConfiguration("workbench.colorCustomizations")) {
+        return;
+      }
+      if (Date.now() > startupGuardUntil) {
+        startupGuard.dispose();
+        return;
+      }
+      // Check if our managed keys were cleared/overridden by the reload.
+      const ws = vscode.workspace.getConfiguration()
+        .inspect<Record<string, string>>("workbench.colorCustomizations")
+        ?.workspaceValue ?? {};
+      if (!ws["titleBar.activeBackground"]) {
+        await applyWorkspaceColor(color, true).catch(() => {});
+      }
+    });
+    context.subscriptions.push(startupGuard);
   }
 
   // ── Post-create command (set by another window via pending-commands.json) ──

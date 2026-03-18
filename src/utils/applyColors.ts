@@ -42,10 +42,12 @@ export function getContrastColor(hex: string): string {
  * Uses ConfigurationTarget.Workspace so each window has its own independent
  * color — this is the only VSCode scope that achieves true per-window isolation.
  *
- * Skips the write if the color is already correctly applied to avoid triggering
- * a settings reload on startup (which causes a brief color flash).
+ * Pass `forceApply = true` on extension activation to bypass the idempotency
+ * guard. This ensures the color re-lands after VSCode's internal settings
+ * reload (which resets the UI to the default theme color) even when the
+ * on-disk values are already correct.
  */
-export async function applyWorkspaceColor(hex: string): Promise<void> {
+export async function applyWorkspaceColor(hex: string, forceApply = false): Promise<void> {
   if (!vscode.workspace.workspaceFolders?.length) {
     return;
   }
@@ -71,9 +73,9 @@ export async function applyWorkspaceColor(hex: string): Promise<void> {
   };
 
   // Skip the write if all managed keys already have the correct values.
-  // This prevents an unnecessary settings reload on startup that causes a
-  // brief flash where the theme color appears before our color re-lands.
-  if (Object.entries(desired).every(([k, v]) => current[k] === v)) {
+  // Bypassed on activation (forceApply=true) so the color re-lands after
+  // VSCode's internal settings reload resets the UI to the default theme.
+  if (!forceApply && Object.entries(desired).every(([k, v]) => current[k] === v)) {
     return;
   }
 
