@@ -101,6 +101,13 @@ export async function upsertSelf(entry: InstanceEntry): Promise<void> {
   await acquireLock();
   try {
     const registry = readFile();
+    // Evict any previous entry for the same workspace path (e.g. after extension
+    // reload or crash recovery) — there must be at most one entry per workspacePath.
+    for (const [id, existing] of Object.entries(registry)) {
+      if (id !== entry.id && existing.workspacePath === entry.workspacePath) {
+        delete registry[id];
+      }
+    }
     registry[entry.id] = entry;
     writeFile(registry);
   } finally {
