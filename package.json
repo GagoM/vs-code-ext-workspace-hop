@@ -4,7 +4,7 @@
   "name": "workspacehop",
   "displayName": "WorkspaceHop",
   "description": "Easily switch between VS Code workspaces/windows - tabs navigation, color identity, custom nicknames, and more",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "engines": {
     "vscode": "^1.88.0"
   },
