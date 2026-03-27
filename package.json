@@ -4,7 +4,7 @@
   "name": "workspacehop",
   "displayName": "WorkspaceHop",
   "description": "Easily switch between VS Code workspaces/windows - tabs navigation, color identity, custom nicknames, and more",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "engines": {
     "vscode": "^1.88.0"
   },
@@ -94,7 +94,11 @@
         "workspacehop.autoUpdate": {
           "type": "string",
           "default": "auto",
-          "enum": ["auto", "notify", "off"],
+          "enum": [
+            "auto",
+            "notify",
+            "off"
+          ],
           "enumDescriptions": [
             "Automatically download and install updates in the background. A reload prompt will appear when ready.",
             "Check for updates and show a notification, but do not install automatically.",
