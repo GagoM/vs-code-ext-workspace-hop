@@ -18,6 +18,7 @@ import {
 } from "./statusBar/statusBarTabs";
 import { SidebarViewProvider } from "./sidebar/sidebarView";
 import { createWorkspace, runPendingCommand } from "./core/workspaceCreator";
+import { startUpdateChecker } from "./utils/updateChecker";
 
 // ─── Module-level state (lifetime = one activation) ──────────────────────────
 
@@ -201,6 +202,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       });
     })
   );
+
+  // ── Update checker ────────────────────────────────────────────────────────
+  startUpdateChecker(context);
 
   // ── Custom title bar hint ─────────────────────────────────────────────────
   promptForCustomTitleBar();

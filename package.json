@@ -90,6 +90,17 @@
           "minimum": 1,
           "maximum": 10,
           "description": "Maximum number of workspace tabs visible in the status bar at a time. Use the ‹ › arrows to page through the rest."
+        },
+        "workspacehop.autoUpdate": {
+          "type": "string",
+          "default": "auto",
+          "enum": ["auto", "notify", "off"],
+          "enumDescriptions": [
+            "Automatically download and install updates in the background. A reload prompt will appear when ready.",
+            "Check for updates and show a notification, but do not install automatically.",
+            "Disable update checks entirely."
+          ],
+          "description": "Controls how WorkspaceHop handles available updates."
         }
       }
     }
