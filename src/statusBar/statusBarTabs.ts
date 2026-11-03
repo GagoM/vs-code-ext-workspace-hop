@@ -5,6 +5,7 @@ import * as vscode from "vscode";
 
 import * as registry  from "../core/registry";
 import * as tabOrder  from "../core/tabOrder";
+import { getContrastColor } from "../utils/applyColors";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -15,8 +16,9 @@ const PRI_BASE  = 95;
 
 const BRANCH_ICON = "$(git-branch)";
 const FOLDER_ICON = "$(folder)";
-const DOT_ACTIVE    = "● "; // U+25CF BLACK CIRCLE — active window
-const DOT_INACTIVE  = "○ "; // U+25CB WHITE CIRCLE — inactive
+const DOT_ACTIVE    = "$(circle-filled)"; // active window
+const DOT_INACTIVE  = "$(circle-outline)"; // other windows
+const INACTIVE_ALPHA = "b3"; // ~70% opacity so the active tab stands out
 
 const DIM_COLOR = "#666666"; // muted color for disabled arrow
 
@@ -162,8 +164,14 @@ async function refresh(): Promise<void> {
 
     tabItems[i].text            = buildLabel(inst, home, isCurrent);
     tabItems[i].tooltip         = buildTooltip(inst, isCurrent, home);
-    tabItems[i].color           = inst.color || undefined;
-    tabItems[i].backgroundColor = undefined;
+    // The current window's tab becomes a filled block: applyColors overrides
+    // statusBarItem.warningBackground with this window's colour, and we pair it
+    // with a contrasting foreground. Other windows' tabs keep coloured text.
+    const filled = isCurrent && !!inst.color;
+    tabItems[i].color           = filled ? getContrastColor(inst.color) : tabColor(inst.color, isCurrent);
+    tabItems[i].backgroundColor = filled
+      ? new vscode.ThemeColor("statusBarItem.warningBackground")
+      : undefined;
     tabItems[i].show();
   }
 }
@@ -172,18 +180,27 @@ async function refresh(): Promise<void> {
 
 function buildLabel(inst: registry.InstanceEntry, home: string, isCurrent: boolean): string {
   const dot = isCurrent ? DOT_ACTIVE : DOT_INACTIVE;
+  // Filled dot + full-opacity colour marks the active tab; the rest are outlined and dimmed.
+  const wrap = (body: string) => `${dot} ${body}`;
 
   if (inst.nickname) {
-    return `${dot}${trunc(inst.nickname, MAX_LBL)}`;
+    return wrap(trunc(inst.nickname, MAX_LBL));
   }
 
   if (inst.branch) {
-    return `${dot}${BRANCH_ICON} ${trunc(inst.branch, MAX_LBL)}`;
+    return wrap(`${BRANCH_ICON} ${trunc(inst.branch, MAX_LBL)}`);
   }
 
   let p = inst.workspacePath || "untitled";
   if (p.startsWith(home)) { p = "~" + p.slice(home.length); }
-  return `${dot}${FOLDER_ICON} ${trunc(path.basename(p) || p, MAX_LBL)}`;
+  return wrap(`${FOLDER_ICON} ${trunc(path.basename(p) || p, MAX_LBL)}`);
+}
+
+/** Full-strength colour for the active tab, softened for the rest. */
+function tabColor(color: string | undefined, isCurrent: boolean): string | undefined {
+  if (!color) { return undefined; }
+  if (isCurrent || !/^#[0-9a-fA-F]{6}$/.test(color)) { return color; }
+  return color + INACTIVE_ALPHA;
 }
 
 // ─── Tooltip ─────────────────────────────────────────────────────────────────

@@ -12,6 +12,8 @@ const MANAGED_KEYS = [
   // A fixed dark canvas for the status bar so WorkspaceHop's per-window tab
   // colours (rendered as text) are always readable regardless of the active theme.
   "statusBar.background",
+  // Used as the filled background of the current window's status bar tab.
+  "statusBarItem.warningBackground",
 ] as const;
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
@@ -70,6 +72,7 @@ export async function applyWorkspaceColor(hex: string, forceApply = false): Prom
     "activityBar.inactiveForeground": fg + "99",
     // Dark neutral canvas so WorkspaceHop's coloured tab text is always readable.
     "statusBar.background":           "#1a1a1a",
+    "statusBarItem.warningBackground": hex,
   };
 
   // Skip the write if all managed keys already have the correct values.
