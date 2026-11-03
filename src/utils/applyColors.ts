@@ -34,6 +34,15 @@ function luminance(hex: string): number {
   return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
 }
 
+/** Blends two #rrggbb colours; `t` = 0 returns `a`, 1 returns `b`. */
+export function mixHex(a: string, b: string, t = 0.5): string {
+  const x = hexToRgb(a);
+  const y = hexToRgb(b);
+  const ch = (p: number, q: number) =>
+    Math.round(p + (q - p) * t).toString(16).padStart(2, "0");
+  return `#${ch(x.r, y.r)}${ch(x.g, y.g)}${ch(x.b, y.b)}`;
+}
+
 /** Returns "#000000" or "#ffffff" for maximum contrast against `hex`. */
 export function getContrastColor(hex: string): string {
   return luminance(hex) > 0.35 ? "#000000" : "#ffffff";
@@ -48,8 +57,12 @@ export function getContrastColor(hex: string): string {
  * guard. This ensures the color re-lands after VSCode's internal settings
  * reload (which resets the UI to the default theme color) even when the
  * on-disk values are already correct.
+ *
+ * For gradient themes pass `hex2`. VS Code cannot paint real gradients in its
+ * chrome, so the theme is stepped across it: title bar = `hex`, activity bar =
+ * the midpoint, active status bar tab = `hex2`.
  */
-export async function applyWorkspaceColor(hex: string, forceApply = false): Promise<void> {
+export async function applyWorkspaceColor(hex: string, forceApply = false, hex2?: string): Promise<void> {
   if (!vscode.workspace.workspaceFolders?.length) {
     return;
   }
@@ -57,6 +70,9 @@ export async function applyWorkspaceColor(hex: string, forceApply = false): Prom
   const config = vscode.workspace.getConfiguration();
   const fg = getContrastColor(hex);
   const inactive = hex + "99"; // ~60% opacity
+  const end = hex2 || hex;
+  const mid = hex2 ? mixHex(hex, hex2, 0.5) : hex;
+  const midFg = getContrastColor(mid);
 
   const current =
     config.inspect<Record<string, string>>("workbench.colorCustomizations")
@@ -67,12 +83,12 @@ export async function applyWorkspaceColor(hex: string, forceApply = false): Prom
     "titleBar.inactiveBackground":    inactive,
     "titleBar.activeForeground":      fg,
     "titleBar.inactiveForeground":    fg + "99",
-    "activityBar.background":         hex,
-    "activityBar.foreground":         fg,
-    "activityBar.inactiveForeground": fg + "99",
+    "activityBar.background":         mid,
+    "activityBar.foreground":         midFg,
+    "activityBar.inactiveForeground": midFg + "99",
     // Dark neutral canvas so WorkspaceHop's coloured tab text is always readable.
     "statusBar.background":           "#1a1a1a",
-    "statusBarItem.warningBackground": hex,
+    "statusBarItem.warningBackground": end,
   };
 
   // Skip the write if all managed keys already have the correct values.

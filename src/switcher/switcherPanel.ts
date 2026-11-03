@@ -121,7 +121,7 @@ export async function showSwitcher(
         await saveColor2ForWorkspace(context, entry.workspacePath, newColor2);
         await registry.updateColor(msg.id, newColor, newColor2);
         if (msg.id === currentId) {
-          if (newColor) { await applyWorkspaceColor(newColor).catch(() => {}); }
+          if (newColor) { await applyWorkspaceColor(newColor, false, newColor2).catch(() => {}); }
           else          { await clearWorkspaceColor().catch(() => {}); }
         }
         await refreshPanel();

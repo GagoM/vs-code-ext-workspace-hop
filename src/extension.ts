@@ -71,7 +71,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   applyGitFilter();
 
   if (color) {
-    await applyWorkspaceColor(color, true /* forceApply — ensures color re-lands after settings reload */).catch(() => {
+    await applyWorkspaceColor(color, true /* forceApply — ensures color re-lands after settings reload */, color2 || undefined).catch(() => {
       // Non-fatal — might fail if workspace settings aren't writable
     });
     // Second attempt: on a brand-new workspace, applyWorkspaceColor() creates
@@ -97,7 +97,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         .inspect<Record<string, string>>("workbench.colorCustomizations")
         ?.workspaceValue ?? {};
       if (!ws["titleBar.activeBackground"]) {
-        await applyWorkspaceColor(color, true).catch(() => {});
+        await applyWorkspaceColor(color, true, color2 || undefined).catch(() => {});
       }
     });
     context.subscriptions.push(startupGuard);
@@ -139,13 +139,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         // Detect cross-window color changes (e.g. set from another window's switcher)
         const latestColor = getColorForWorkspace(context, workspacePath) ?? "";
         const latestColor2 = getColor2ForWorkspace(context, workspacePath) ?? "";
+        const changed = latestColor !== color || latestColor2 !== color2;
         color2 = latestColor2;
         self.color2 = color2 || undefined;
-        if (latestColor !== color) {
+        if (changed) {
           color = latestColor;
           self.color = color;
           if (color) {
-            await applyWorkspaceColor(color).catch(() => {});
+            await applyWorkspaceColor(color, false, color2 || undefined).catch(() => {});
           } else {
             await clearWorkspaceColor().catch(() => {});
           }
@@ -200,7 +201,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         await saveColorForWorkspace(context, workspacePath, newColor);
         await saveColor2ForWorkspace(context, workspacePath, newColor2);
         if (newColor) {
-          await applyWorkspaceColor(newColor).catch(() => {});
+          await applyWorkspaceColor(newColor, false, newColor2).catch(() => {});
         } else {
           await clearWorkspaceColor().catch(() => {});
         }

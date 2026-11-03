@@ -168,7 +168,7 @@ async function refresh(): Promise<void> {
     // statusBarItem.warningBackground with this window's colour, and we pair it
     // with a contrasting foreground. Other windows' tabs keep coloured text.
     const filled = isCurrent && !!inst.color;
-    tabItems[i].color           = filled ? getContrastColor(inst.color) : tabColor(inst.color, isCurrent);
+    tabItems[i].color           = filled ? getContrastColor(inst.color2 || inst.color) : tabColor(inst.color, isCurrent);
     tabItems[i].backgroundColor = filled
       ? new vscode.ThemeColor("statusBarItem.warningBackground")
       : undefined;
