@@ -15,8 +15,10 @@ const PRI_BASE  = 95;
 
 const BRANCH_ICON = "$(git-branch)";
 const FOLDER_ICON = "$(folder)";
-const DOT_ACTIVE    = "● "; // U+25CF BLACK CIRCLE — active window
-const DOT_INACTIVE  = "○ "; // U+25CB WHITE CIRCLE — inactive
+const DOT_ACTIVE    = "$(circle-filled)"; // active window
+const DOT_INACTIVE  = "$(circle-outline)"; // other windows
+const PAD           = "\u00A0\u00A0"; // non-breaking spaces: breathing room around each tab
+const INACTIVE_ALPHA = "b3"; // ~70% opacity so the active tab stands out
 
 const DIM_COLOR = "#666666"; // muted color for disabled arrow
 
@@ -162,7 +164,7 @@ async function refresh(): Promise<void> {
 
     tabItems[i].text            = buildLabel(inst, home, isCurrent);
     tabItems[i].tooltip         = buildTooltip(inst, isCurrent, home);
-    tabItems[i].color           = inst.color || undefined;
+    tabItems[i].color           = tabColor(inst.color, isCurrent);
     tabItems[i].backgroundColor = undefined;
     tabItems[i].show();
   }
@@ -172,18 +174,27 @@ async function refresh(): Promise<void> {
 
 function buildLabel(inst: registry.InstanceEntry, home: string, isCurrent: boolean): string {
   const dot = isCurrent ? DOT_ACTIVE : DOT_INACTIVE;
+  // Filled dot + full-opacity colour marks the active tab; the rest are outlined and dimmed.
+  const wrap = (body: string) => `${PAD}${dot} ${body}${PAD}`;
 
   if (inst.nickname) {
-    return `${dot}${trunc(inst.nickname, MAX_LBL)}`;
+    return wrap(trunc(inst.nickname, MAX_LBL));
   }
 
   if (inst.branch) {
-    return `${dot}${BRANCH_ICON} ${trunc(inst.branch, MAX_LBL)}`;
+    return wrap(`${BRANCH_ICON} ${trunc(inst.branch, MAX_LBL)}`);
   }
 
   let p = inst.workspacePath || "untitled";
   if (p.startsWith(home)) { p = "~" + p.slice(home.length); }
-  return `${dot}${FOLDER_ICON} ${trunc(path.basename(p) || p, MAX_LBL)}`;
+  return wrap(`${FOLDER_ICON} ${trunc(path.basename(p) || p, MAX_LBL)}`);
+}
+
+/** Full-strength colour for the active tab, softened for the rest. */
+function tabColor(color: string | undefined, isCurrent: boolean): string | undefined {
+  if (!color) { return undefined; }
+  if (isCurrent || !/^#[0-9a-fA-F]{6}$/.test(color)) { return color; }
+  return color + INACTIVE_ALPHA;
 }
 
 // ─── Tooltip ─────────────────────────────────────────────────────────────────
