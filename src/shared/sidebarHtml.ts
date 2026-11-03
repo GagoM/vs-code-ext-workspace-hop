@@ -207,7 +207,7 @@ body {
 /* ── List ── */
 .list {
   list-style: none;
-  padding: 4px;
+  padding: 8px;
   overflow-y: auto;
   flex: 1;
   min-height: 0;
@@ -221,33 +221,54 @@ body {
 
 /* ── Window items ── */
 .obs-item {
+  --c: rgba(128,128,128,0.4);
   display: flex;
   align-items: center;
-  border-radius: 6px;
+  border-radius: 10px;
   overflow: hidden;
-  margin-bottom: 2px;
+  margin-bottom: 6px;
   cursor: pointer;
-  transition: background 0.1s;
   position: relative;
+  border: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.2));
+  background: linear-gradient(100deg,
+    color-mix(in srgb, var(--c) 14%, transparent) 0%,
+    transparent 65%);
+  transition: transform 0.15s ease, box-shadow 0.15s ease,
+              border-color 0.15s ease, background 0.15s ease;
 }
 .obs-item:last-child { margin-bottom: 0; }
-.obs-item:hover    { background: var(--vscode-list-hoverBackground); }
-.obs-item.selected { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+.obs-item:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--c) 60%, transparent);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--c) 22%, transparent);
+  background: linear-gradient(100deg,
+    color-mix(in srgb, var(--c) 22%, transparent) 0%,
+    transparent 75%);
+}
+.obs-item.current {
+  border-color: color-mix(in srgb, var(--c) 70%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 35%, transparent),
+              0 4px 18px color-mix(in srgb, var(--c) 28%, transparent);
+  background: linear-gradient(100deg,
+    color-mix(in srgb, var(--c) 30%, transparent) 0%,
+    color-mix(in srgb, var(--c) 6%, transparent) 80%);
+}
+.obs-item.selected { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
 .obs-item.faded    { opacity: 0.35; }
 
 /* Left accent bar */
 .obs-accent {
-  width: 3px;
+  width: 4px;
   align-self: stretch;
   flex-shrink: 0;
-  border-radius: 2px;
-  margin: 6px 0 6px 4px;
+  border-radius: 4px;
+  margin: 8px 0 8px 4px;
 }
 
 /* Content area */
 .obs-content {
   flex: 1;
-  padding: 8px 10px;
+  padding: 10px 12px;
   min-width: 0;
 }
 
@@ -332,8 +353,8 @@ body {
 
 /* Right active dot */
 .obs-active-dot {
-  width: 5px;
-  height: 5px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   margin-right: 10px;
   flex-shrink: 0;
@@ -680,7 +701,8 @@ const JS = `(function () {
       var displayName = inst.nickname || inst.repoName;
 
       var li = document.createElement('li');
-      li.className = 'obs-item' + (!matches ? ' faded' : '');
+      li.className = 'obs-item' + (isCurrent ? ' current' : '') + (!matches ? ' faded' : '');
+      if (color) { li.style.setProperty('--c', color); }
       li.setAttribute('role', 'option');
       li.setAttribute('draggable', 'true');
       li.dataset.workspacePath = inst.workspacePath;

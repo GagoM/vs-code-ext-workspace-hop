@@ -27,6 +27,7 @@ MANAGED_KEYS = [
     "activityBar.foreground",
     "activityBar.inactiveForeground",
     "statusBar.background",
+    "statusBarItem.warningBackground",
 ]
 
 
