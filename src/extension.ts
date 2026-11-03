@@ -4,7 +4,7 @@ import * as vscode from "vscode";
 
 import * as registry from "./core/registry";
 import * as git from "./core/git";
-import { getColorForWorkspace, saveColorForWorkspace } from "./core/colorManager";
+import { getColorForWorkspace, saveColorForWorkspace, getColor2ForWorkspace, saveColor2ForWorkspace } from "./core/colorManager";
 import { getNicknameForWorkspace } from "./core/nicknameManager";
 import { startFocusServer, FocusServer } from "./core/focusServer";
 import { applyWorkspaceColor, clearWorkspaceColor } from "./utils/applyColors";
@@ -43,6 +43,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // ── Saved color ───────────────────────────────────────────────────────────
   let color = workspacePath
     ? getColorForWorkspace(context, workspacePath) ?? ""
+    : "";
+
+  let color2 = workspacePath
+    ? getColor2ForWorkspace(context, workspacePath) ?? ""
     : "";
 
   // ── Saved nickname ────────────────────────────────────────────────────────
@@ -115,6 +119,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     repoName,
     branch,
     color,
+    color2: color2 || undefined,
     nickname,
     createdAt: Date.now(),
     lastActive: Date.now(),
@@ -133,6 +138,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
         // Detect cross-window color changes (e.g. set from another window's switcher)
         const latestColor = getColorForWorkspace(context, workspacePath) ?? "";
+        const latestColor2 = getColor2ForWorkspace(context, workspacePath) ?? "";
+        color2 = latestColor2;
+        self.color2 = color2 || undefined;
         if (latestColor !== color) {
           color = latestColor;
           self.color = color;
@@ -186,9 +194,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         );
         return;
       }
-      showColorPicker(color || undefined, nickname || repoName, async (newColor) => {
+      showColorPicker(color || undefined, color2 || undefined, nickname || repoName, async (newColor, newColor2) => {
         color = newColor;
+        color2 = newColor2 ?? "";
         await saveColorForWorkspace(context, workspacePath, newColor);
+        await saveColor2ForWorkspace(context, workspacePath, newColor2);
         if (newColor) {
           await applyWorkspaceColor(newColor).catch(() => {});
         } else {
@@ -196,6 +206,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
         if (self) {
           self.color = color;
+          self.color2 = color2 || undefined;
           await registry.upsertSelf(self).catch(() => { /* non-fatal */ });
         }
         refreshStatusBarTabs();

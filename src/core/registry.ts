@@ -9,6 +9,7 @@ export interface InstanceEntry {
   repoName: string;     // basename of workspacePath
   branch: string;       // current git branch, "" if not a git repo
   color: string;        // hex color, "" if unset
+  color2?: string;      // gradient end colour; absent = solid colour
   createdAt: number;    // unix timestamp ms — set once at activation, used for stable tab ordering
   lastActive: number;   // unix timestamp ms
   pid: number;          // OS PID — used to detect stale entries
@@ -177,12 +178,13 @@ export async function updateNickname(id: string, nickname: string): Promise<void
 }
 
 /** Update only the color field of an existing entry. No-op if ID not found. */
-export async function updateColor(id: string, color: string): Promise<void> {
+export async function updateColor(id: string, color: string, color2?: string): Promise<void> {
   await acquireLock();
   try {
     const registry = readFile();
     if (registry[id]) {
       registry[id].color = color;
+      registry[id].color2 = color2 || undefined;
       writeFile(registry);
     }
   } finally {

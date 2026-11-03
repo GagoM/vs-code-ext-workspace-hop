@@ -9,6 +9,7 @@ export interface RecentWorkspace {
   kind: "folder" | "workspace";
   branch?: string; // current git branch, omitted if not a git repo
   color?: string;  // saved workspace color hex, omitted if none set
+  color2?: string; // saved gradient end colour, omitted for solid colours
 }
 
 /** Maximum number of recent entries shown in the switcher. */

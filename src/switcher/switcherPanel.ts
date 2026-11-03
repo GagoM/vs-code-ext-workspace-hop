@@ -9,7 +9,7 @@ import {
   promptAndSaveNickname,
   saveNicknameForWorkspace,
 } from "../core/nicknameManager";
-import { saveColorForWorkspace } from "../core/colorManager";
+import { saveColorForWorkspace, saveColor2ForWorkspace } from "../core/colorManager";
 import { applyWorkspaceColor, clearWorkspaceColor } from "../utils/applyColors";
 import { ensureGitFilterConfigured } from "../utils/gitFilter";
 import { showColorPicker } from "../colorPicker/colorPickerPanel";
@@ -116,9 +116,10 @@ export async function showSwitcher(
       const entry = await registry.getById(msg.id);
       if (!entry) { return; }
 
-      showColorPicker(entry.color || undefined, entry.nickname || entry.repoName, async (newColor) => {
+      showColorPicker(entry.color || undefined, entry.color2 || undefined, entry.nickname || entry.repoName, async (newColor, newColor2) => {
         await saveColorForWorkspace(context, entry.workspacePath, newColor);
-        await registry.updateColor(msg.id, newColor);
+        await saveColor2ForWorkspace(context, entry.workspacePath, newColor2);
+        await registry.updateColor(msg.id, newColor, newColor2);
         if (msg.id === currentId) {
           if (newColor) { await applyWorkspaceColor(newColor).catch(() => {}); }
           else          { await clearWorkspaceColor().catch(() => {}); }

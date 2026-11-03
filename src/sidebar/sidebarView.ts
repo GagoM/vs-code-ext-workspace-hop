@@ -9,7 +9,7 @@ import {
   promptAndSaveNickname,
   saveNicknameForWorkspace,
 } from "../core/nicknameManager";
-import { saveColorForWorkspace, getColorForWorkspace } from "../core/colorManager";
+import { saveColorForWorkspace, getColorForWorkspace, saveColor2ForWorkspace, getColor2ForWorkspace } from "../core/colorManager";
 import { getBranch } from "../core/git";
 import { applyWorkspaceColor, clearWorkspaceColor } from "../utils/applyColors";
 import { ensureGitFilterConfigured } from "../utils/gitFilter";
@@ -83,9 +83,10 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
         const entry = await registry.getById(msg.id);
         if (!entry) { return; }
 
-        showColorPicker(entry.color || undefined, entry.nickname || entry.repoName, async (newColor) => {
+        showColorPicker(entry.color || undefined, entry.color2 || undefined, entry.nickname || entry.repoName, async (newColor, newColor2) => {
           await saveColorForWorkspace(this.context, entry.workspacePath, newColor);
-          await registry.updateColor(msg.id, newColor);
+          await saveColor2ForWorkspace(this.context, entry.workspacePath, newColor2);
+          await registry.updateColor(msg.id, newColor, newColor2);
           if (msg.id === this.currentId) {
             if (newColor) { await applyWorkspaceColor(newColor).catch(() => { }); }
             else { await clearWorkspaceColor().catch(() => { }); }
@@ -140,7 +141,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     const skipWorktree = vscode.workspace
       .getConfiguration("workspacehop")
       .get<boolean>("manageGitSkipWorktree", true);
-    const fp = sorted.map(i => `${i.id}:${i.color}:${i.nickname ?? ''}:${i.branch}`).join('|')
+    const fp = sorted.map(i => `${i.id}:${i.color}:${i.color2 ?? ''}:${i.nickname ?? ''}:${i.branch}`).join('|')
       + `|skipWorktree:${skipWorktree}`;
     if (fp === this.lastFingerprint) { return; }
     this.lastFingerprint = fp;
@@ -149,6 +150,7 @@ export class SidebarViewProvider implements vscode.WebviewViewProvider {
     const recent = await getRecentWorkspaces(openPaths);
     await Promise.all(recent.map(async (r) => {
       r.color = getColorForWorkspace(this.context, r.fsPath);
+      r.color2 = getColor2ForWorkspace(this.context, r.fsPath);
       r.branch = await getBranch(r.fsPath) || undefined;
     }));
     const nonce = crypto.randomBytes(16).toString("hex");

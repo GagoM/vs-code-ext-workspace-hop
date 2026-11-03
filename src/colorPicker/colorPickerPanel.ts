@@ -1,28 +1,30 @@
 import * as crypto from "crypto";
 import * as vscode from "vscode";
-import { PALETTE } from "../core/colorManager";
+import { PALETTE, THEMES } from "../core/colorManager";
 
 let activePanel: vscode.WebviewPanel | undefined;
-let activeCallback: ((hex: string) => void) | undefined;
+let activeCallback: ((hex: string, hex2?: string) => void) | undefined;
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 /**
  * Opens the color-picker webview.
- * `onColorChanged` is called with the selected hex string (empty string = cleared).
+ * `onColorChanged` is called with the selected hex string (empty string = cleared)
+ * and, for gradient themes, the gradient end colour.
  * Callers are responsible for persisting and applying the color.
  */
 export async function showColorPicker(
   currentColor: string | undefined,
+  currentColor2: string | undefined,
   workspaceName: string,
-  onColorChanged: (hex: string) => void
+  onColorChanged: (hex: string, hex2?: string) => void
 ): Promise<void> {
   if (activePanel) {
     // Update the panel for the new workspace without recreating it.
     activeCallback = onColorChanged;
     activePanel.title = `WorkspaceHop: Set Color`;
     const nonce = crypto.randomBytes(16).toString("hex");
-    activePanel.webview.html = buildHtml(currentColor, workspaceName, nonce);
+    activePanel.webview.html = buildHtml(currentColor, currentColor2, workspaceName, nonce);
     activePanel.reveal(vscode.ViewColumn.One, true);
     return;
   }
@@ -39,11 +41,11 @@ export async function showColorPicker(
   panel.onDidDispose(() => { activePanel = undefined; activeCallback = undefined; });
 
   const nonce = crypto.randomBytes(16).toString("hex");
-  panel.webview.html = buildHtml(currentColor, workspaceName, nonce);
+  panel.webview.html = buildHtml(currentColor, currentColor2, workspaceName, nonce);
 
   panel.webview.onDidReceiveMessage(async (msg: PickerMessage) => {
     if (msg.type === "pick" && msg.hex) {
-      activeCallback?.(msg.hex);
+      activeCallback?.(msg.hex, msg.hex2 || undefined);
       panel.dispose();
     } else if (msg.type === "clear") {
       activeCallback?.("");
@@ -59,13 +61,31 @@ export async function showColorPicker(
 interface PickerMessage {
   type: "pick" | "clear" | "close";
   hex: string;
+  hex2?: string;
 }
 
 // ─── HTML builder ────────────────────────────────────────────────────────────
 
-function buildHtml(currentColor: string | undefined, workspaceName: string, nonce: string): string {
+function buildHtml(currentColor: string | undefined, currentColor2: string | undefined, workspaceName: string, nonce: string): string {
+  const themeSwatches = THEMES.map((t) => {
+    const isActive = t.hex === currentColor && t.hex2 === currentColor2;
+    return (
+      `<button` +
+      ` class="theme${isActive ? " active" : ""}"` +
+      ` data-hex="${t.hex}" data-hex2="${t.hex2}"` +
+      ` title="${t.name}"` +
+      ` aria-label="${t.name} theme${isActive ? " (current)" : ""}"` +
+      ` aria-pressed="${isActive}"` +
+      `><span class="theme-name">${t.name}</span></button>`
+    );
+  }).join("\n      ");
+
+  const themeCSS = THEMES.map(
+    (t) => `.theme[data-hex="${t.hex}"][data-hex2="${t.hex2}"] { background: linear-gradient(135deg, ${t.hex}, ${t.hex2}); color: ${textOn(t.hex)}; }`
+  ).join("\n");
+
   const swatches = PALETTE.map((c) => {
-    const isActive = c.hex === currentColor;
+    const isActive = c.hex === currentColor && !currentColor2;
     return (
       `<button` +
       ` class="swatch${isActive ? " active" : ""}"` +
@@ -93,12 +113,18 @@ function buildHtml(currentColor: string | undefined, workspaceName: string, nonc
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Set Color – ${workspaceName}</title>
   <style nonce="${nonce}">${CSS}
-${swatchColorCSS}</style>
+${swatchColorCSS}
+${themeCSS}</style>
 </head>
 <body>
   <div class="container">
     <h1 class="title">${workspaceName}</h1>
-    <p class="subtitle">Choose a color for this workspace</p>
+    <p class="subtitle">Choose a theme or color for this workspace</p>
+    <h2 class="section">Themes</h2>
+    <div class="theme-grid" role="group" aria-label="Gradient themes">
+      ${themeSwatches}
+    </div>
+    <h2 class="section">Solid colors</h2>
     <div class="grid" role="group" aria-label="Color palette">
       ${swatches}
     </div>
@@ -109,6 +135,16 @@ ${swatchColorCSS}</style>
   <script nonce="${nonce}">${JS}</script>
 </body>
 </html>`;
+}
+
+/** Readable label colour over the theme's gradient (same rule as the status bar). */
+function textOn(hex: string): string {
+  const h = hex.replace("#", "");
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const c = parseInt(h.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.35 ? "#000000" : "#ffffff";
 }
 
 // ─── Embedded CSS ────────────────────────────────────────────────────────────
@@ -130,9 +166,54 @@ body {
 .container {
   text-align: center;
   padding: 40px 32px;
-  max-width: 320px;
+  max-width: 380px;
   width: 100%;
 }
+
+.section {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: rgba(255, 255, 255, 0.38);
+  text-align: left;
+  margin: 0 0 10px;
+}
+
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 26px;
+}
+
+.theme {
+  position: relative;
+  height: 54px;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  outline: none;
+  display: flex;
+  align-items: flex-end;
+  padding: 7px 9px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  transition: transform 140ms, box-shadow 140ms, border-color 140ms;
+}
+.theme:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+.theme:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.65); outline-offset: 3px; }
+.theme.active {
+  border-color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.18);
+}
+.theme-name { pointer-events: none; }
 
 .title {
   font-size: 18px;
@@ -208,6 +289,12 @@ const JS = `(function () {
   'use strict';
 
   var vscode = acquireVsCodeApi();
+
+  document.querySelectorAll('.theme').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      vscode.postMessage({ type: 'pick', hex: btn.dataset.hex, hex2: btn.dataset.hex2 });
+    });
+  });
 
   document.querySelectorAll('.swatch').forEach(function (btn) {
     btn.addEventListener('click', function () {

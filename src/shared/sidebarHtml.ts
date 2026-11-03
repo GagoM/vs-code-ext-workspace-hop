@@ -222,6 +222,7 @@ body {
 /* ── Window items ── */
 .obs-item {
   --c: rgba(128,128,128,0.4);
+  --c2: var(--c);
   display: flex;
   align-items: center;
   border-radius: 10px;
@@ -232,7 +233,7 @@ body {
   border: 1px solid var(--vscode-panel-border, rgba(128,128,128,0.2));
   background: linear-gradient(100deg,
     color-mix(in srgb, var(--c) 14%, transparent) 0%,
-    transparent 65%);
+    color-mix(in srgb, var(--c2) 5%, transparent) 90%);
   transition: transform 0.15s ease, box-shadow 0.15s ease,
               border-color 0.15s ease, background 0.15s ease;
 }
@@ -243,7 +244,7 @@ body {
   box-shadow: 0 4px 14px color-mix(in srgb, var(--c) 22%, transparent);
   background: linear-gradient(100deg,
     color-mix(in srgb, var(--c) 22%, transparent) 0%,
-    transparent 75%);
+    color-mix(in srgb, var(--c2) 12%, transparent) 100%);
 }
 .obs-item.current {
   border-color: color-mix(in srgb, var(--c) 70%, transparent);
@@ -251,7 +252,7 @@ body {
               0 4px 18px color-mix(in srgb, var(--c) 28%, transparent);
   background: linear-gradient(100deg,
     color-mix(in srgb, var(--c) 30%, transparent) 0%,
-    color-mix(in srgb, var(--c) 6%, transparent) 80%);
+    color-mix(in srgb, var(--c2) 16%, transparent) 100%);
 }
 .obs-item.selected { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
 .obs-item.faded    { opacity: 0.35; }
@@ -702,7 +703,9 @@ const JS = `(function () {
 
       var li = document.createElement('li');
       li.className = 'obs-item' + (isCurrent ? ' current' : '') + (!matches ? ' faded' : '');
+      var color2 = inst.color2 || '';
       if (color) { li.style.setProperty('--c', color); }
+      if (color2) { li.style.setProperty('--c2', color2); }
       li.setAttribute('role', 'option');
       li.setAttribute('draggable', 'true');
       li.dataset.workspacePath = inst.workspacePath;
@@ -716,7 +719,9 @@ const JS = `(function () {
       // Left accent bar
       var accent = document.createElement('div');
       accent.className = 'obs-accent';
-      accent.style.background = color || 'rgba(128,128,128,0.2)';
+      accent.style.background = color
+        ? (color2 ? 'linear-gradient(180deg, ' + color + ', ' + color2 + ')' : color)
+        : 'rgba(128,128,128,0.2)';
 
       // Content
       var content = document.createElement('div');
@@ -774,8 +779,8 @@ const JS = `(function () {
       var dot = document.createElement('div');
       dot.className = 'obs-active-dot';
       if (isCurrent && color) {
-        dot.style.background = color;
-        dot.style.boxShadow  = '0 0 5px ' + color;
+        dot.style.background = color2 ? 'linear-gradient(135deg, ' + color + ', ' + color2 + ')' : color;
+        dot.style.boxShadow  = '0 0 6px ' + color;
       } else if (isCurrent) {
         dot.style.background = 'rgba(128,128,128,0.5)';
       } else {
@@ -827,7 +832,9 @@ const JS = `(function () {
         if (r.color) {
           var recentAccent = document.createElement('div');
           recentAccent.className = 'obs-accent';
-          recentAccent.style.background = r.color;
+          recentAccent.style.background = r.color2
+            ? 'linear-gradient(180deg, ' + r.color + ', ' + r.color2 + ')'
+            : r.color;
           li.appendChild(recentAccent);
         }
 
